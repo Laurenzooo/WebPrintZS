@@ -48,8 +48,8 @@ class Settings:
         self.log_retention_days = _int("LOG_RETENTION_DAYS", 365)
         self.agent_offline_after_s = _int("AGENT_OFFLINE_AFTER_S", 60)
 
-        self.formats = _list("FORMATS", "A4,A3,A5")
-        self.duplex_formats = _list("DUPLEX_FORMATS", "A4,A3,A5")
+        self.formats = _list("FORMATS", "A4,A3")
+        self.duplex_formats = _list("DUPLEX_FORMATS", "A4,A3")
         self.cookie_secure = _bool("COOKIE_SECURE", True)
         self.session_days = _int("SESSION_DAYS", 30)
         self.display_tz = os.getenv("DISPLAY_TZ", "Europe/Berlin")

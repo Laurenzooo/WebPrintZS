@@ -24,10 +24,17 @@ const state = {
 
 // ------------------------------------------------------------------ Formularwerte
 const val = (name) => form.querySelector(`input[name="${name}"]:checked`)?.value;
+// Beidseitig = immer wie ein Buch umblättern. Bei Hochformat ist das die lange Papierkante,
+// bei Querformat die kurze – so stehen die Rückseiten immer richtig herum.
+function computeDuplex() {
+  if (val("seiten_modus") !== "beidseitig") return "none";
+  return state.landscape ? "short" : "long";
+}
 const settings = () => ({
   format: val("format"),
   color: val("farbe") === "1",
-  duplex: val("duplex"),
+  duplex: computeDuplex(),
+
   copies: Math.max(1, Math.min(Number($("kopien").value) || 1, Number($("kopien").max))),
   preset: val("preset") || "",
 });
@@ -226,8 +233,8 @@ async function renderPreview() {
   const [front, back] = list[state.sheet] || [null, null];
   const sheetEl = $("sheet");
   const duplex = s.duplex !== "none";
-  // Wendeachse: lange Kante bei Hochformat = senkrecht (Y), kurze Kante = waagerecht (X); bei Querformat umgekehrt.
-  const axisY = (s.duplex === "long") !== state.landscape;
+  // Seitlich umblättern = Drehung um die senkrechte Achse, nach oben = um die waagerechte.
+  const axisY = true;
   sheetEl.classList.toggle("axis-x", duplex && !axisY);
   sheetEl.classList.toggle("flipped", duplex && state.back);
   sheetEl.classList.toggle("duplex", duplex);
@@ -240,8 +247,9 @@ async function renderPreview() {
   document.querySelector(".stage").classList.toggle("mono", !s.color);
 
   const n = list.length;
+  const shown = duplex && state.back ? back : front;
   $("nav-text").textContent = n
-    ? `Blatt ${state.sheet + 1} von ${n}${duplex ? (state.back ? ", Rückseite" : ", Vorderseite") : ""}`
+    ? `Blatt ${state.sheet + 1} von ${n}${duplex ? (state.back ? ", Rückseite" : ", Vorderseite") : ""}${shown ? ` (Seite ${shown})` : ", leer"}`
     : "";
   $("nav-prev").disabled = state.sheet === 0 && !(duplex && state.back);
   $("nav-next").disabled = state.sheet >= n - 1 && !(duplex && !state.back);
@@ -271,16 +279,28 @@ function step(dir) {
 function updateDuplexAvailability() {
   const fmt = val("format");
   const ok = duplexFormats.includes(fmt);
-  form.querySelectorAll('input[name="duplex"]').forEach((el) => {
-    if (el.value !== "none") el.disabled = !ok;
-  });
-  if (!ok && val("duplex") !== "none") setRadio("duplex", "none");
+  const duplexRadio = form.querySelector('input[name="seiten_modus"][value="beidseitig"]');
+  duplexRadio.disabled = !ok;
+  if (!ok && duplexRadio.checked) setRadio("seiten_modus", "einseitig");
+  const both = val("seiten_modus") === "beidseitig";
+  $("flip-explain").hidden = !both;
   const hint = $("duplex-hint");
-  if (!ok) { hint.textContent = `${fmt} kann nur einseitig gedruckt werden.`; hint.hidden = false; }
-  else if (state.landscape && val("duplex") === "long") {
-    hint.textContent = "Querformat: Mit „nach oben blättern“ stehen die Rückseiten beim Durchblättern richtig herum.";
-    hint.hidden = false;
-  } else hint.hidden = true;
+  hint.textContent = ok ? "" : `${fmt} kann nur einseitig gedruckt werden.`;
+  hint.hidden = ok;
+  $("duplex").value = computeDuplex();
+}
+
+// Beim Umschalten einmal vorführen, wie das Blatt gewendet wird.
+let demoTimer = null;
+function demoFlip() {
+  if (!state.file || reduceMotion || settings().duplex === "none") return;
+  clearTimeout(demoTimer);
+  state.back = false;
+  renderPreview();
+  demoTimer = setTimeout(() => {
+    state.back = true; renderPreview();
+    demoTimer = setTimeout(() => { state.back = false; renderPreview(); }, 1400);
+  }, 250);
 }
 
 function update() {
@@ -325,7 +345,7 @@ function update() {
     const sheetsTotal = perCopy * s.copies;
     main.textContent = `${pages} Druckseite${pages === 1 ? "" : "n"} auf ${sheetsTotal} Blatt ${s.format}`;
     const parts = [s.color ? "Farbe" : "Schwarzweiß",
-      s.duplex === "none" ? "einseitig" : s.duplex === "long" ? "beidseitig wie ein Buch" : "beidseitig, nach oben blättern"];
+      s.duplex === "none" ? "einseitig" : "beidseitig"];
     if (s.copies > 1) parts.push(`${s.copies} Kopien`);
     sub.textContent = parts.join(", ");
     btn.disabled = state.pages > MAX_PAGES;
@@ -341,7 +361,7 @@ function applyPreset(id) {
   setRadio("format", p.format);
   updateDuplexAvailability();
   setRadio("farbe", p.farbe ? "1" : "0");
-  setRadio("duplex", p.duplex);
+  setRadio("seiten_modus", p.duplex === "none" ? "einseitig" : "beidseitig");
   $("kopien").value = p.kopien;
   if (hint) { hint.textContent = p.hinweis || ""; hint.hidden = !p.hinweis; }
 }
@@ -354,9 +374,10 @@ function dropPreset() {
 form.addEventListener("change", (e) => {
   const name = e.target.name;
   if (name === "preset") applyPreset(e.target.value);
-  else if (["format", "farbe", "duplex", "kopien"].includes(name)) dropPreset();
-  if (name === "duplex") state.back = false;
+  else if (["format", "farbe", "seiten_modus", "kopien"].includes(name)) dropPreset();
+  if (name === "seiten_modus") state.back = false;
   if (name !== "datei") update();
+  if (name === "seiten_modus") demoFlip();
 });
 $("seiten").addEventListener("input", () => { state.sheet = 0; state.back = false; update(); });
 $("seiten-reset").addEventListener("click", () => { $("seiten").value = ""; update(); });
@@ -399,7 +420,9 @@ new ResizeObserver(() => { clearTimeout(resizeTimer); resizeTimer = setTimeout(r
 form.addEventListener("submit", (ev) => {
   ev.preventDefault();
   if ($("submit").disabled || !state.file) return;
+  $("duplex").value = computeDuplex();
   const fd = new FormData(form);
+  fd.delete("seiten_modus");
   fd.set("kopien", settings().copies);
   const xhr = new XMLHttpRequest();
   xhr.open("POST", "/upload");

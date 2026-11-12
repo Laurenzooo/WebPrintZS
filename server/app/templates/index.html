@@ -142,25 +142,21 @@
 
     <fieldset class="group">
       <legend>Druckseiten</legend>
-      <div class="segmented three">
-        <label class="tile duplex-tile">
-          <input type="radio" name="duplex" value="none" checked>
-          <svg class="duplex-ic" aria-hidden="true"><use href="#i-simplex"/></svg>
-          <span class="tile-title">Einseitig</span>
+      <input type="hidden" name="duplex" id="duplex" value="none">
+      <div class="segmented two">
+        <label class="tile row-tile">
+          <input type="radio" name="seiten_modus" value="einseitig" checked>
+          <svg class="mode-ic" aria-hidden="true"><use href="#i-simplex"/></svg>
+          <span class="tile-text"><span class="tile-title">Einseitig</span><span class="tile-sub">Rückseite bleibt leer</span></span>
         </label>
-        <label class="tile duplex-tile">
-          <input type="radio" name="duplex" value="long">
-          <svg class="duplex-ic" aria-hidden="true"><use href="#i-duplex-long"/></svg>
-          <span class="tile-title">Beidseitig</span>
-          <span class="tile-sub">wie ein Buch</span>
-        </label>
-        <label class="tile duplex-tile">
-          <input type="radio" name="duplex" value="short">
-          <svg class="duplex-ic" aria-hidden="true"><use href="#i-duplex-short"/></svg>
-          <span class="tile-title">Beidseitig</span>
-          <span class="tile-sub">nach oben blättern</span>
+        <label class="tile row-tile">
+          <input type="radio" name="seiten_modus" value="beidseitig">
+          <svg class="mode-ic" aria-hidden="true"><use href="#i-duplex"/></svg>
+          <span class="tile-text"><span class="tile-title">Beidseitig</span><span class="tile-sub">halb so viel Papier</span></span>
         </label>
       </div>
+
+      <p id="flip-explain" class="help" hidden>Die Rückseiten stehen richtig herum, wenn du wie in einem Buch umblätterst.</p>
       <p id="duplex-hint" class="help" hidden></p>
     </fieldset>
 
@@ -211,4 +207,4 @@
 <script type="application/json" id="presets-data">{{ presets_json | safe }}</script>
 <script type="application/json" id="duplex-formats">{{ duplex_formats_json | safe }}</script>
 {% endblock %}
-{% block scripts %}<script type="module" src="/static/app.js?v=3"></script>{% endblock %}
+{% block scripts %}<script type="module" src="/static/app.js?v=4"></script>{% endblock %}

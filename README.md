@@ -126,8 +126,8 @@ SECRET_KEY=$(python3 -c "import secrets;print(secrets.token_urlsafe(48))") DATA_
 | `JOB_EXPIRE_HOURS` | 12 | nicht gedruckte Aufträge danach verwerfen und Datei löschen |
 | `PRINTING_TIMEOUT_MIN` | 15 | „Wird gedruckt“ ohne Rückmeldung → Fehler |
 | `LOG_RETENTION_DAYS` | 365 | Logeinträge danach löschen |
-| `FORMATS` | A4,A3,A5 | angebotene Papierformate |
-| `DUPLEX_FORMATS` | A4,A3,A5 | Formate mit Duplex-Option (am Gerät prüfen, siehe Checkliste) |
+| `FORMATS` | A4,A3 | angebotene Papierformate |
+| `DUPLEX_FORMATS` | A4,A3 | Formate mit Duplex-Option (am Gerät prüfen, siehe Checkliste) |
 | `COOKIE_SECURE` | true | lokal ohne HTTPS auf `false` |
 
 ### 2.5 Presets
@@ -374,7 +374,7 @@ Warnungen (z. B. `media-empty`, `marker-supply-low`) und **Tintenstände** aus, 
 **Agent und Drucker**
 - [ ] `--list-printers` zeigt den Drucker und alle Instanzen
 - [ ] `--test-print` A4 s/w einseitig, A4 duplex lange Kante, A3 farbig: Ergebnis am Papier kontrollieren
-- [ ] **A3 duplex** am 7740 testen. Wenn der Duplexer A3 nicht kann: `DUPLEX_FORMATS=A4,A5` setzen.
+- [ ] **A3 duplex** am 7740 testen. Wenn der Duplexer A3 nicht kann: `DUPLEX_FORMATS=A4` setzen.
 - [ ] Kopien = 2 und Seitenbereich `2-3` werden eingehalten
 - [ ] Farbe/s-w: Ein farbiges PDF mit „Schwarzweiß“ drucken, es kommt ohne Farbtinte heraus
 - [ ] Preset „Abgabe A3 farbig“ landet auf Instanz `HP7740_A3_farbe` (steht im Agent-Log: `Route '...'`)
