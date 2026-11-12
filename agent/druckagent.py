@@ -217,8 +217,8 @@ def sumatra_settings(job: dict, route: dict, cfg: dict) -> str:
     s.append(f"{int(job['kopien'])}x")
     if job.get("ausrichtung") in ("portrait", "landscape"):
         s.append(job["ausrichtung"])  # sonst dreht SumatraPDF automatisch passend
-    if cfg["sumatra"].get("scaling"):
-        s.append(cfg["sumatra"]["scaling"])
+    # Skalierung kommt aus dem Auftrag: an Blatt anpassen oder tatsächliche Größe (100 %).
+    s.append("noscale" if job.get("skalierung") == "actual" else "fit")
     if route.get("bin"):
         s.append(f"bin={route['bin']}")
     s += list(cfg["sumatra"].get("extra", [])) + list(route.get("extra", []))
@@ -294,6 +294,10 @@ def print_cups(path: Path, job: dict, route: dict, cfg: dict) -> None:
     args += ["-o", "print-color-mode=" + ("color" if job["farbe"] else "monochrome")]
     if job.get("seiten"):
         args += ["-o", f"page-ranges={job['seiten']}"]
+    if (job.get("skalierung") or "fit") == "fit":
+        args += ["-o", "fit-to-page"]
+    else:
+        args += ["-o", "print-scaling=none"]
     if job.get("ausrichtung") in ("portrait", "landscape"):
         args += ["-o", "orientation-requested=" + ("3" if job["ausrichtung"] == "portrait" else "4")]
     if route.get("bin"):
@@ -318,7 +322,7 @@ def print_ipp(path: Path, job: dict, route: dict, cfg: dict) -> None:
             job_name=job.get("datei", path.name), user=job.get("nutzer", "druckagent"),
             copies=int(job["kopien"]), sides=ipp.SIDES[job["duplex"]], media=media,
             color=bool(job["farbe"]), page_ranges=ipp.parse_ranges(job.get("seiten")),
-            scaling=cfg["ipp"].get("scaling") or None,
+            scaling="fit" if (job.get("skalierung") or "fit") == "fit" else "none",
             orientation=job.get("ausrichtung"),
         )
         log.info("IPP: Auftrag an %s übergeben, Drucker-Job-ID %s", uri, job_id)
@@ -500,6 +504,7 @@ def main() -> None:
     p.add_argument("--kopien", type=int, default=1)
     p.add_argument("--seiten", default=None)
     p.add_argument("--preset", default=None)
+    p.add_argument("--skalierung", default="fit", choices=["fit", "actual"])
     p.add_argument("--ausrichtung", default="auto", choices=["auto", "portrait", "landscape"])
     a = p.parse_args()
 
@@ -515,7 +520,7 @@ def main() -> None:
 
     if a.test_print:
         job = {"id": "test", "datei": Path(a.test_print).name, "format": a.format, "farbe": a.farbe,
-               "duplex": a.duplex, "ausrichtung": a.ausrichtung, "kopien": a.kopien, "seiten": a.seiten, "preset": a.preset, "nutzer": "test"}
+               "duplex": a.duplex, "ausrichtung": a.ausrichtung, "skalierung": a.skalierung, "kopien": a.kopien, "seiten": a.seiten, "preset": a.preset, "nutzer": "test"}
         print_file(Path(a.test_print).resolve(), job, cfg)
         log.info("Testdruck übergeben.")
         return

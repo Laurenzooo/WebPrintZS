@@ -226,7 +226,7 @@ input[aria-invalid=true] { border-color: var(--err); box-shadow: 0 0 0 3px var(-
 .face.back { transform: rotateY(180deg); }
 .sheet.axis-x .face.back { transform: rotateX(180deg); }
 .sheet:not(.duplex) .face.back { display: none; }
-.face canvas { display: block; transition: filter .35s; }
+.face canvas { display: block; position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); transition: filter .35s; }
 .face-empty { display: none; color: #A3A29C; font-size: 13px; }
 .face.is-empty canvas { display: none; }
 .face.is-empty .face-empty { display: block; }
@@ -353,6 +353,9 @@ legend ~ * { clear: both; }
 .orient-glyph.auto i:first-child { width: 17px; height: 23px; left: 6px; top: 1px; }
 .orient-glyph.auto i:last-child { width: 24px; height: 17px; right: 3px; bottom: 1px; }
 .tile:has(input:checked) .orient-glyph i { border-color: var(--accent); }
+.scale-ic { width: 22px; height: 22px; color: var(--ink-2); flex: none; }
+.tile:has(input:checked) .scale-ic { color: var(--accent); }
+#scale-info.is-warn { color: var(--warn); }
 .mode-ic { width: 34px; height: 27px; color: var(--ink-2); flex: none; }
 .tile:has(input:checked) .mode-ic { color: var(--accent); }
 .tile-text { display: grid; text-align: left; line-height: 1.25; }

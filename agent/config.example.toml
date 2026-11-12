@@ -18,8 +18,8 @@ work_dir = 'C:\WebDruck\work'
 log_file = 'C:\WebDruck\druckagent.log'
 
 [sumatra]
+# Skalierung (an Blatt anpassen / tatsächliche Größe) wählt der Nutzer pro Auftrag.
 path    = 'C:\Program Files\SumatraPDF\SumatraPDF.exe'
-scaling = "fit"              # fit | shrink | noscale
 wait_for_spooler = true      # erst "gedruckt" melden, wenn die Windows-Warteschlange leer ist
 extra   = []                 # zusätzliche -print-settings, z. B. ["bin=2"]
 
@@ -31,7 +31,6 @@ options = []                 # zusätzliche lp -o Optionen, z. B. ["fit-to-page"
 uri = ""                     # z. B. "ipp://192.168.1.50/ipp/print"
 # Nur für Status/Tintenstände in der Admin-Ansicht (funktioniert auch bei method = "sumatra"):
 status_uri = ""              # z. B. "ipp://192.168.1.50/ipp/print"
-scaling = "fit"
 wait_for_completion = true
 
 # ---------------------------------------------------------------- Routing

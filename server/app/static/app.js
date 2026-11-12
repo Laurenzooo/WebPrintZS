@@ -39,6 +39,7 @@ const settings = () => ({
   format: val("format"),
   color: val("farbe") === "1",
   duplex: computeDuplex(),
+  scaling: val("skalierung") === "actual" ? "actual" : "fit",
 
   copies: Math.max(1, Math.min(Number($("kopien").value) || 1, Number($("kopien").max))),
   preset: val("preset") || "",
@@ -47,6 +48,17 @@ function setRadio(name, value) {
   const el = form.querySelector(`input[name="${name}"][value="${value}"]`);
   if (el && !el.disabled) el.checked = true;
 }
+
+// ------------------------------------------------------------------ Papiergrößen
+const PT_TO_MM = 25.4 / 72;
+const KNOWN_SIZES = [["A5", 148, 210], ["A4", 210, 297], ["A3", 297, 420], ["A2", 420, 594],
+  ["Letter", 216, 279], ["Legal", 216, 356]];
+function sizeName(wMm, hMm) {
+  const [a, b] = [Math.min(wMm, hMm), Math.max(wMm, hMm)];
+  const hit = KNOWN_SIZES.find(([, x, y]) => Math.abs(a - x) <= 3 && Math.abs(b - y) <= 3);
+  return hit ? `${hit[0]} ${wMm > hMm ? "quer" : "hoch"}` : null;
+}
+const mm = (v) => Math.round(v);
 
 // ------------------------------------------------------------------ Seitenbereiche
 function parseRange(str, n) {
@@ -97,7 +109,9 @@ async function loadFile(file) {
     const first = await state.doc.getPage(1);
     const vp = first.getViewport({ scale: 1 });
     state.landscape = vp.width > vp.height * 1.02;
-    $("file-meta").textContent = `${state.pages} Seite${state.pages === 1 ? "" : "n"}, ${state.landscape ? "Querformat" : "Hochformat"}, ${fmtSize(file.size)}`;
+    const wMm = vp.width * PT_TO_MM, hMm = vp.height * PT_TO_MM;
+    const name = sizeName(wMm, hMm);
+    $("file-meta").textContent = `${state.pages} Seite${state.pages === 1 ? "" : "n"}, ${name ? name + ", " : ""}${mm(wMm)} × ${mm(hMm)} mm, ${fmtSize(file.size)}`;
     if (state.pages > MAX_PAGES) toast(`Das PDF hat ${state.pages} Seiten, erlaubt sind höchstens ${MAX_PAGES}.`, "error");
   } catch (e) {
     state.doc = null; state.pages = 0;
@@ -116,6 +130,7 @@ function clearFile() {
   fileInput.value = "";
   $("seiten").value = "";
   setRadio("ausrichtung", "auto");
+  $("scale-info").hidden = true;
   $("preview").hidden = true;
   $("dropzone").hidden = false;
   $("thumbs").replaceChildren();
@@ -196,8 +211,8 @@ function layoutSheet() {
   const sheet = $("sheet-stack");
   sheet.style.width = `${Math.round(sw * pxPerMm)}px`;
   sheet.style.height = `${Math.round(sh * pxPerMm)}px`;
-  $("paper-label").textContent = `${s.format} ${land ? "quer" : "hoch"}, ${land ? `${hMm} × ${wMm}` : `${wMm} × ${hMm}`} mm`;
-  return { w: sw * pxPerMm, h: sh * pxPerMm };
+  $("paper-label").textContent = `Blatt ${s.format} ${land ? "quer" : "hoch"}, ${sw} × ${sh} mm`;
+  return { w: sw * pxPerMm, h: sh * pxPerMm, pxPerMm, sheetMm: [sw, sh] };
 }
 
 async function renderFace(canvas, pageNum, box, gen) {
@@ -214,13 +229,23 @@ async function renderFace(canvas, pageNum, box, gen) {
   const base = page.getViewport({ scale: 1 });
   const pageLand = base.width > base.height;
   const sheetLand = box.w > box.h;
-  // Automatisch: Seiten werden passend zum Blatt gedreht. Feste Ausrichtung: Seite bleibt, wie sie ist.
-  const autoRotate = val("ausrichtung") === "auto";
+  const fit = settings().scaling === "fit";
+  // Beim Anpassen mit "Automatisch" werden Seiten passend zum Blatt gedreht; sonst bleibt die Seite, wie sie ist.
+  const autoRotate = fit && val("ausrichtung") === "auto";
   const rotation = (page.rotate + (autoRotate && pageLand !== sheetLand ? 90 : 0)) % 360;
   const rv = page.getViewport({ scale: 1, rotation });
-  const margin = Math.min(box.w, box.h) * 0.03; // ca. 4–5 mm unbedruckbarer Rand
-  const scale = Math.min((box.w - 2 * margin) / rv.width, (box.h - 2 * margin) / rv.height);
-  const dpr = Math.min(window.devicePixelRatio || 1, 2.5);
+  const actualScale = box.pxPerMm * PT_TO_MM;            // Bildschirm-px pro PDF-Punkt bei 100 %
+  const marginMm = 4;                                     // typischer unbedruckbarer Rand
+  const margin = marginMm * box.pxPerMm;
+  const scale = fit ? Math.min((box.w - 2 * margin) / rv.width, (box.h - 2 * margin) / rv.height) : actualScale;
+  const pageMm = [rv.width * PT_TO_MM, rv.height * PT_TO_MM];
+  const info = {
+    pageMm, name: sizeName(pageMm[0], pageMm[1]), pct: Math.round((scale / actualScale) * 100),
+    clipped: !fit && (pageMm[0] > box.sheetMm[0] - 2 * marginMm + 0.5 || pageMm[1] > box.sheetMm[1] - 2 * marginMm + 0.5),
+  };
+  let dpr = Math.min(window.devicePixelRatio || 1, 2.5);
+  const area = rv.width * scale * rv.height * scale * dpr * dpr;
+  if (area > 16e6) dpr *= Math.sqrt(16e6 / area);          // Riesenseiten: Canvas begrenzen
   const vp = page.getViewport({ scale: scale * dpr, rotation });
   const off = document.createElement("canvas");
   off.width = Math.ceil(vp.width); off.height = Math.ceil(vp.height);
@@ -229,6 +254,27 @@ async function renderFace(canvas, pageNum, box, gen) {
   canvas.width = off.width; canvas.height = off.height;
   canvas.style.width = `${vp.width / dpr}px`; canvas.style.height = `${vp.height / dpr}px`;
   ctx.drawImage(off, 0, 0);
+  return info;
+}
+
+function showScaleInfo(info, pageNum) {
+  const el = $("scale-info");
+  if (!info) { el.hidden = true; return; }
+  const size = `Seite ${pageNum} ist ${mm(info.pageMm[0])} × ${mm(info.pageMm[1])} mm${info.name ? ` (${info.name})` : ""}.`;
+  let text;
+  if (settings().scaling === "fit") {
+    text = info.pct < 100 ? `${size} Sie wird auf ${info.pct} % verkleinert, damit sie aufs Blatt passt.`
+      : info.pct > 100 ? `${size} Sie wird auf ${info.pct} % vergrößert, um das Blatt zu füllen.`
+      : `${size} Sie passt ohne Änderung aufs Blatt.`;
+  } else if (info.clipped) {
+    text = `${size} Sie ist größer als der bedruckbare Bereich des Blatts, die Ränder werden abgeschnitten.`;
+  } else {
+    text = `${size} Sie wird in Originalgröße gedruckt, 1 mm im PDF ist 1 mm auf Papier.`;
+  }
+  el.textContent = text;
+  el.classList.toggle("is-warn", !!info.clipped);
+  el.hidden = false;
+  $("paper-label").textContent += `, ${info.pct} %`;
 }
 
 async function renderPreview() {
@@ -263,10 +309,12 @@ async function renderPreview() {
   $("nav-next").disabled = state.sheet >= n - 1 && !(duplex && !state.back);
   $("nav-flip").hidden = !duplex;
 
-  await Promise.all([
+  const shownPage = duplex && state.back && back ? back : front;
+  const [fi, bi] = await Promise.all([
     renderFace($("cv-front"), front, box, gen),
     duplex ? renderFace($("cv-back"), back, box, gen) : Promise.resolve(),
-  ]).catch(() => {});
+  ]).catch(() => [null, null]);
+  if (gen === state.renderGen) showScaleInfo(shownPage === back && bi ? bi : fi, shownPage);
 }
 
 function step(dir) {

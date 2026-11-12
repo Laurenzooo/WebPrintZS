@@ -130,6 +130,7 @@ def job_public(row) -> dict:
         "kopien": row["copies"],
         "seiten": row["page_range"],
         "ausrichtung": row["orientation"],
+        "skalierung": row["scaling"],
         "seitenzahl": row["pages"],
         "druckseiten": row["print_pages"],
         "blatt": row["sheets"],
@@ -401,6 +402,9 @@ async def upload(request: Request):
     orientation = str(form.get("ausrichtung", "auto"))
     if orientation not in ORIENTATION_LABELS:
         return fail("Ungültige Ausrichtung.")
+    scaling = str(form.get("skalierung", "fit"))
+    if scaling not in ("fit", "actual"):
+        return fail("Ungültige Skalierung.")
     duplex = str(form.get("duplex", "none"))
     if duplex not in DUPLEX_LABELS:
         return fail("Ungültige Duplex-Einstellung.")
@@ -481,6 +485,7 @@ async def upload(request: Request):
             "color": int(color),
             "duplex": duplex,
             "orientation": orientation,
+            "scaling": scaling,
             "copies": copies,
             "page_range": page_range,
             "preset": preset,
@@ -666,7 +671,7 @@ def admin_log_csv(request: Request):
     require_admin(request)
     cols = [
         "id", "created_at", "finished_at", "user_name", "ip", "filename", "status", "error", "format",
-        "color", "duplex", "orientation", "copies", "page_range", "pages", "print_pages", "sheets", "preset", "size_bytes",
+        "color", "duplex", "orientation", "scaling", "copies", "page_range", "pages", "print_pages", "sheets", "preset", "size_bytes",
     ]
 
     def gen():

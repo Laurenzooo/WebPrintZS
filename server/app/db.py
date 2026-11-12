@@ -25,6 +25,7 @@ CREATE TABLE IF NOT EXISTS jobs (
     page_range   TEXT,
     preset       TEXT,
     orientation  TEXT    NOT NULL DEFAULT 'auto' CHECK (orientation IN ('auto', 'portrait', 'landscape')),
+    scaling      TEXT    NOT NULL DEFAULT 'fit' CHECK (scaling IN ('fit', 'actual')),
     user_name    TEXT    NOT NULL,
     session_id   TEXT    NOT NULL,
     ip           TEXT    NOT NULL,
@@ -60,6 +61,8 @@ def init(path: str) -> None:
         cols = {r["name"] for r in c.execute("PRAGMA table_info(jobs)")}
         if "orientation" not in cols:
             c.execute("ALTER TABLE jobs ADD COLUMN orientation TEXT NOT NULL DEFAULT 'auto'")
+        if "scaling" not in cols:
+            c.execute("ALTER TABLE jobs ADD COLUMN scaling TEXT NOT NULL DEFAULT 'fit'")
 
 
 @contextmanager

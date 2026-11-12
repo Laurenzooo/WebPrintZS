@@ -147,6 +147,23 @@
     </fieldset>
 
     <fieldset class="group">
+      <legend>Skalierung</legend>
+      <div class="segmented two">
+        <label class="tile row-tile">
+          <input type="radio" name="skalierung" value="fit" checked>
+          <svg class="scale-ic" aria-hidden="true"><use href="#i-fit"/></svg>
+          <span class="tile-text"><span class="tile-title">An Blatt anpassen</span><span class="tile-sub">passt immer drauf</span></span>
+        </label>
+        <label class="tile row-tile">
+          <input type="radio" name="skalierung" value="actual">
+          <svg class="scale-ic" aria-hidden="true"><use href="#i-actual"/></svg>
+          <span class="tile-text"><span class="tile-title">Tatsächliche Größe</span><span class="tile-sub">100 %, maßstabsgetreu</span></span>
+        </label>
+      </div>
+      <p id="scale-info" class="help" hidden></p>
+    </fieldset>
+
+    <fieldset class="group">
       <legend>Farbe</legend>
       <div class="segmented two">
         <label class="tile row-tile">
@@ -229,4 +246,4 @@
 <script type="application/json" id="presets-data">{{ presets_json | safe }}</script>
 <script type="application/json" id="duplex-formats">{{ duplex_formats_json | safe }}</script>
 {% endblock %}
-{% block scripts %}<script type="module" src="/static/app.js?v=5"></script>{% endblock %}
+{% block scripts %}<script type="module" src="/static/app.js?v=6"></script>{% endblock %}

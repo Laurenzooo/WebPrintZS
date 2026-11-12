@@ -379,6 +379,9 @@ Warnungen (z. B. `media-empty`, `marker-supply-low`) und **Tintenstände** aus, 
 - [ ] **Ausrichtung:** Querformat-PDF mit „Automatisch“ drucken, es kommt quer heraus. Dasselbe PDF mit „Hochformat“
   drucken. Für feste Ausrichtung sendet der Agent `portrait`/`landscape` an SumatraPDF (CUPS: `orientation-requested`,
   IPP: `orientation-requested`). Bei „Automatisch“ dreht SumatraPDF die Seiten selbst passend.
+- [ ] **Skalierung:** Ein A3-PDF auf A4 mit „An Blatt anpassen“ drucken, es kommt vollständig verkleinert heraus
+  (die Vorschau nennt den Prozentwert). Mit „Tatsächliche Größe“ einen Plan mit Maßstab drucken und mit dem Lineal
+  nachmessen: 100 mm im PDF müssen 100 mm auf Papier sein (SumatraPDF `noscale`, CUPS/IPP `print-scaling=none`).
 - [ ] **Beidseitig mit Querformat:** Die Rückseiten stehen beim seitlichen Umblättern richtig herum (die App wählt hier
   automatisch die kurze Kante).
 - [ ] Farbe/s-w: Ein farbiges PDF mit „Schwarzweiß“ drucken, es kommt ohne Farbtinte heraus
