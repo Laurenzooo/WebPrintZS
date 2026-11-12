@@ -40,19 +40,16 @@ wait_for_completion = true
 # Passt keine Regel, gilt method/printer von oben.
 
 [[route]]
-name    = "Abgabe A3 farbig"
-preset  = "abgabe-a3-farbe"
+name    = "A3"
+format  = "A3"
 printer = "HP7740_A3_farbe"          # Instanz mit Treiber-Voreinstellungen (Fach 2, beste Qualität)
 
 [[route]]
-name    = "Skript s/w duplex"
-preset  = "skript-a4-sw-duplex"
+name    = "A4 s/w beidseitig"
+format  = "A4"
+farbe   = false
+duplex  = "long"
 printer = "HP7740_A4_sw_duplex"      # Instanz mit Entwurfsqualität / Graustufen
-
-[[route]]
-name    = "Alles in A3"
-format  = "A3"
-printer = "HP7740_A3_farbe"
 # bin   = "2"                         # alternativ Papierfach direkt per SumatraPDF wählen
 
 # Beispiel: A4 farbig direkt per IPP am Treiber vorbei

@@ -339,7 +339,6 @@ function updateDuplexAvailability() {
   duplexRadio.disabled = !ok;
   if (!ok && duplexRadio.checked) setRadio("seiten_modus", "einseitig");
   const both = val("seiten_modus") === "beidseitig";
-  $("flip-explain").hidden = !both;
   const hint = $("duplex-hint");
   hint.textContent = ok ? "" : `${fmt} kann nur einseitig gedruckt werden.`;
   hint.hidden = ok;

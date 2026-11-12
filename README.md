@@ -130,9 +130,9 @@ SECRET_KEY=$(python3 -c "import secrets;print(secrets.token_urlsafe(48))") DATA_
 | `DUPLEX_FORMATS` | A4,A3 | Formate mit Duplex-Option (am Gerät prüfen, siehe Checkliste) |
 | `COOKIE_SECURE` | true | lokal ohne HTTPS auf `false` |
 
-### 2.5 Presets
+### 2.5 Vorlagen (optional, standardmäßig aus)
 
-`server/presets.json` legt fest, was im Feld „Voreinstellung“ erscheint. Die `id` wird im Log gespeichert und vom
+`server/presets.json` ist leer, deshalb zeigt die Oberfläche keine Vorlagen. Wer welche möchte, trägt sie dort ein, dann erscheint oben im Panel eine Auswahl. Die `id` wird im Log gespeichert und vom
 Agenten fürs Routing auf Druckerinstanzen genutzt (siehe Abschnitt 4).
 
 ```json
