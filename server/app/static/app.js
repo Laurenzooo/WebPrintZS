@@ -156,13 +156,20 @@ function buildThumbs() {
   }, { root: wrap, rootMargin: "200px" });
   const count = Math.min(state.pages, 500);
   for (let p = 1; p <= count; p++) {
-    const b = document.createElement("button");
-    b.type = "button"; b.className = "thumb"; b.dataset.page = p;
-    b.setAttribute("aria-label", `Seite ${p}`);
-    b.append(document.createElement("canvas"));
+    const b = document.createElement("div");
+    b.className = "thumb"; b.dataset.page = p;
+    const view = document.createElement("button");
+    view.type = "button"; view.className = "thumb-view";
+    view.setAttribute("aria-label", `Seite ${p} in der Vorschau zeigen`);
+    view.append(document.createElement("canvas"));
+    view.addEventListener("click", () => goToPage(p));
+    const check = document.createElement("button");
+    check.type = "button"; check.className = "thumb-check";
+    check.setAttribute("aria-label", `Seite ${p} drucken`);
+    check.innerHTML = '<svg class="ic" aria-hidden="true"><use href="#i-check"/></svg>';
+    check.addEventListener("click", () => togglePage(p));
     const n = document.createElement("span"); n.className = "thumb-num"; n.textContent = p;
-    b.append(n);
-    b.addEventListener("click", () => togglePage(p));
+    b.append(view, check, n);
     wrap.append(b);
     thumbObserver.observe(b);
   }
@@ -179,15 +186,65 @@ async function renderThumb(doc, btn) {
   await page.render({ canvasContext: cv.getContext("2d"), viewport: vp }).promise;
   btn.classList.add("ready");
 }
+function goToPage(p) {
+  const list = sheets();
+  const i = list.findIndex(([f, b]) => f === p || b === p);
+  if (i < 0) return;
+  state.sheet = i;
+  state.back = list[i][1] === p;
+  renderPreview();
+}
+
+// Seitenleiste mit der Maus greifen und ziehen (Touch scrollt nativ).
+function enableDragScroll(el) {
+  let startX = 0, startLeft = 0, dragging = false, down = false;
+  el.addEventListener("pointerdown", (e) => {
+    if (e.pointerType !== "mouse" || e.button !== 0) return;
+    down = true; dragging = false; startX = e.clientX; startLeft = el.scrollLeft;
+  });
+  el.addEventListener("pointermove", (e) => {
+    if (!down) return;
+    const dx = e.clientX - startX;
+    if (!dragging && Math.abs(dx) > 4) {
+      dragging = true;
+      el.classList.add("grabbing");
+      el.setPointerCapture(e.pointerId);
+    }
+    if (dragging) el.scrollLeft = startLeft - dx;
+  });
+  const end = (e) => {
+    if (!down) return;
+    down = false;
+    el.classList.remove("grabbing");
+    if (el.hasPointerCapture?.(e.pointerId)) el.releasePointerCapture(e.pointerId);
+  };
+  el.addEventListener("pointerup", end);
+  el.addEventListener("pointercancel", end);
+  // Ein Ziehvorgang soll keinen Klick auf eine Miniatur auslösen.
+  el.addEventListener("click", (e) => {
+    if (dragging) { e.stopPropagation(); e.preventDefault(); dragging = false; }
+  }, true);
+  el.addEventListener("dragstart", (e) => e.preventDefault());
+}
+enableDragScroll($("thumbs"));
+// Mausrad ohne Shift scrollt die Leiste ebenfalls seitwärts.
+$("thumbs").addEventListener("wheel", (e) => {
+  const el = e.currentTarget;
+  if (Math.abs(e.deltaY) > Math.abs(e.deltaX) && el.scrollWidth > el.clientWidth) {
+    el.scrollLeft += e.deltaY; e.preventDefault();
+  }
+}, { passive: false });
+
 function togglePage(p) {
   const r = parseRange($("seiten").value, state.pages);
   const set = new Set(r.pages || []);
   if (set.has(p)) set.delete(p); else set.add(p);
   if (!set.size) return toast("Mindestens eine Seite muss ausgewählt bleiben.", "error");
   const sorted = [...set].sort((a, b) => a - b);
+  const shown = Number(document.querySelector(".thumb.current")?.dataset.page) || 0;
   $("seiten").value = sorted.length === state.pages ? "" : compress(sorted);
-  state.sheet = 0; state.back = false;
   update();
+  if (set.has(shown)) goToPage(shown);  // Vorschau bleibt bei der angezeigten Seite
 }
 
 // ------------------------------------------------------------------ Blätter & Vorschau
@@ -310,6 +367,7 @@ async function renderPreview() {
   $("nav-flip").hidden = !duplex;
 
   const shownPage = duplex && state.back && back ? back : front;
+  $("thumbs").querySelectorAll(".thumb").forEach((t) => t.classList.toggle("current", Number(t.dataset.page) === shownPage));
   const [fi, bi] = await Promise.all([
     renderFace($("cv-front"), front, box, gen),
     duplex ? renderFace($("cv-back"), back, box, gen) : Promise.resolve(),
@@ -375,7 +433,7 @@ function update() {
   $("thumbs").querySelectorAll(".thumb").forEach((t) => {
     const on = sel.has(Number(t.dataset.page));
     t.classList.toggle("off", !on);
-    t.setAttribute("aria-pressed", on ? "true" : "false");
+    t.querySelector(".thumb-check").setAttribute("aria-pressed", on ? "true" : "false");
   });
   document.querySelector(".stage").classList.toggle("mono", !s.color);
 

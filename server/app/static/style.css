@@ -256,21 +256,32 @@ input[aria-invalid=true] { border-color: var(--err); box-shadow: 0 0 0 3px var(-
   background: color-mix(in srgb, var(--surface) 70%, transparent);
   scrollbar-width: thin; scroll-snap-type: x proximity;
 }
-.thumb {
-  flex: none; position: relative; display: grid; justify-items: center; gap: 4px;
-  padding: 0; border: 0; background: none; cursor: pointer; scroll-snap-align: start;
-}
+.thumbs { cursor: grab; user-select: none; -webkit-user-select: none; }
+.thumbs.grabbing { cursor: grabbing; scroll-snap-type: none; }
+.thumbs.grabbing .thumb-view { pointer-events: none; }
+.thumb { flex: none; position: relative; display: grid; justify-items: center; gap: 4px; scroll-snap-align: start; }
+.thumb-view { padding: 0; border: 0; background: none; cursor: inherit; border-radius: 3px; }
 .thumb canvas {
   display: block; height: 92px; min-width: 64px; background: var(--sheet); border-radius: 2px;
   box-shadow: 0 0 0 1px var(--line-strong), 0 2px 5px rgba(30, 28, 20, .08);
   transition: box-shadow .15s, opacity .15s, filter .35s;
+  -webkit-user-drag: none;
 }
 .thumb:not(.ready) canvas { width: 65px; }
-.thumb:hover canvas { box-shadow: 0 0 0 1px var(--muted), 0 4px 10px rgba(30, 28, 20, .12); }
-.thumb[aria-pressed=true] canvas { box-shadow: 0 0 0 2px var(--accent), 0 2px 6px rgba(30, 28, 20, .1); }
+.thumb-view:hover canvas { box-shadow: 0 0 0 1px var(--muted), 0 4px 10px rgba(30, 28, 20, .12); }
+.thumb.current canvas { box-shadow: 0 0 0 2px var(--accent), 0 2px 6px rgba(30, 28, 20, .1); }
 .thumb.off canvas { opacity: .35; }
+.thumb-check {
+  position: absolute; top: 5px; right: 5px; width: 22px; height: 22px; padding: 0;
+  display: grid; place-items: center; border-radius: 50%; cursor: pointer;
+  background: var(--accent); color: var(--accent-ink); border: 1.5px solid var(--accent);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, .18); transition: background-color .12s, border-color .12s, transform .12s;
+}
+.thumb-check .ic { width: 13px; height: 13px; stroke-width: 2.6; }
+.thumb-check[aria-pressed=false] { background: rgba(255, 255, 255, .92); border-color: #A9A8A2; color: transparent; }
+.thumb-check:hover { transform: scale(1.08); }
 .thumb-num { font-size: 11.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
-.thumb[aria-pressed=true] .thumb-num { color: var(--accent); font-weight: 600; }
+.thumb.current .thumb-num { color: var(--accent); font-weight: 600; }
 
 /* --- Einstellungs-Panel */
 .panel {
