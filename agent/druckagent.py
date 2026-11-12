@@ -215,6 +215,8 @@ def sumatra_settings(job: dict, route: dict, cfg: dict) -> str:
     s.append("color" if job["farbe"] else "monochrome")
     s.append({"none": "simplex", "long": "duplexlong", "short": "duplexshort"}[job["duplex"]])
     s.append(f"{int(job['kopien'])}x")
+    if job.get("ausrichtung") in ("portrait", "landscape"):
+        s.append(job["ausrichtung"])  # sonst dreht SumatraPDF automatisch passend
     if cfg["sumatra"].get("scaling"):
         s.append(cfg["sumatra"]["scaling"])
     if route.get("bin"):
@@ -292,6 +294,8 @@ def print_cups(path: Path, job: dict, route: dict, cfg: dict) -> None:
     args += ["-o", "print-color-mode=" + ("color" if job["farbe"] else "monochrome")]
     if job.get("seiten"):
         args += ["-o", f"page-ranges={job['seiten']}"]
+    if job.get("ausrichtung") in ("portrait", "landscape"):
+        args += ["-o", "orientation-requested=" + ("3" if job["ausrichtung"] == "portrait" else "4")]
     if route.get("bin"):
         args += ["-o", f"InputSlot={route['bin']}"]
     for opt in list(cfg["cups"].get("options", [])) + list(route.get("extra", [])):
@@ -315,6 +319,7 @@ def print_ipp(path: Path, job: dict, route: dict, cfg: dict) -> None:
             copies=int(job["kopien"]), sides=ipp.SIDES[job["duplex"]], media=media,
             color=bool(job["farbe"]), page_ranges=ipp.parse_ranges(job.get("seiten")),
             scaling=cfg["ipp"].get("scaling") or None,
+            orientation=job.get("ausrichtung"),
         )
         log.info("IPP: Auftrag an %s übergeben, Drucker-Job-ID %s", uri, job_id)
         if cfg["ipp"].get("wait_for_completion", True):
@@ -383,8 +388,8 @@ class Agent:
     def process(self, job: dict) -> None:
         job_id = job["id"]
         log.info(
-            "Auftrag %s von %s: %s | %s %s %s %sx Seiten=%s Preset=%s",
-            job_id, job.get("nutzer"), job.get("datei"), job["format"],
+            "Auftrag %s von %s: %s | %s %s %s %s %sx Seiten=%s Preset=%s",
+            job_id, job.get("nutzer"), job.get("datei"), job["format"], job.get("ausrichtung", "auto"),
             "farbe" if job["farbe"] else "sw", job["duplex"], job["kopien"], job.get("seiten") or "alle",
             job.get("preset") or "-",
         )
@@ -495,6 +500,7 @@ def main() -> None:
     p.add_argument("--kopien", type=int, default=1)
     p.add_argument("--seiten", default=None)
     p.add_argument("--preset", default=None)
+    p.add_argument("--ausrichtung", default="auto", choices=["auto", "portrait", "landscape"])
     a = p.parse_args()
 
     if a.check_ipp:
@@ -509,7 +515,7 @@ def main() -> None:
 
     if a.test_print:
         job = {"id": "test", "datei": Path(a.test_print).name, "format": a.format, "farbe": a.farbe,
-               "duplex": a.duplex, "kopien": a.kopien, "seiten": a.seiten, "preset": a.preset, "nutzer": "test"}
+               "duplex": a.duplex, "ausrichtung": a.ausrichtung, "kopien": a.kopien, "seiten": a.seiten, "preset": a.preset, "nutzer": "test"}
         print_file(Path(a.test_print).resolve(), job, cfg)
         log.info("Testdruck übergeben.")
         return

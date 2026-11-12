@@ -55,6 +55,7 @@ STATUS_LABELS = {
     "cancelled": "Abgebrochen",
     "expired": "Verfallen",
 }
+ORIENTATION_LABELS = {"auto": "automatisch", "portrait": "Hochformat", "landscape": "Querformat"}
 DUPLEX_LABELS = {"none": "einseitig", "long": "beidseitig (lange Kante)", "short": "beidseitig (kurze Kante)"}
 
 settings.validate()
@@ -128,6 +129,7 @@ def job_public(row) -> dict:
         "duplex": row["duplex"],
         "kopien": row["copies"],
         "seiten": row["page_range"],
+        "ausrichtung": row["orientation"],
         "seitenzahl": row["pages"],
         "druckseiten": row["print_pages"],
         "blatt": row["sheets"],
@@ -238,7 +240,7 @@ app.mount("/static", StaticFiles(directory=BASE / "static"), name="static")
 templates = Jinja2Templates(directory=BASE / "templates")
 templates.env.filters["localtime"] = lambda s: fmt_local(s, settings.display_tz)
 templates.env.globals.update(
-    STATUS_LABELS=STATUS_LABELS, DUPLEX_LABELS=DUPLEX_LABELS, site_title=settings.site_title
+    STATUS_LABELS=STATUS_LABELS, DUPLEX_LABELS=DUPLEX_LABELS, ORIENTATION_LABELS=ORIENTATION_LABELS, site_title=settings.site_title
 )
 
 CSP = (
@@ -396,6 +398,9 @@ async def upload(request: Request):
     if fmt not in settings.formats:
         return fail("Ungültiges Papierformat.")
     color = str(form.get("farbe", "0")) == "1"
+    orientation = str(form.get("ausrichtung", "auto"))
+    if orientation not in ORIENTATION_LABELS:
+        return fail("Ungültige Ausrichtung.")
     duplex = str(form.get("duplex", "none"))
     if duplex not in DUPLEX_LABELS:
         return fail("Ungültige Duplex-Einstellung.")
@@ -475,6 +480,7 @@ async def upload(request: Request):
             "format": fmt,
             "color": int(color),
             "duplex": duplex,
+            "orientation": orientation,
             "copies": copies,
             "page_range": page_range,
             "preset": preset,
@@ -660,7 +666,7 @@ def admin_log_csv(request: Request):
     require_admin(request)
     cols = [
         "id", "created_at", "finished_at", "user_name", "ip", "filename", "status", "error", "format",
-        "color", "duplex", "copies", "page_range", "pages", "print_pages", "sheets", "preset", "size_bytes",
+        "color", "duplex", "orientation", "copies", "page_range", "pages", "print_pages", "sheets", "preset", "size_bytes",
     ]
 
     def gen():

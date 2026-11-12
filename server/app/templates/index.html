@@ -6,7 +6,7 @@
   <div class="job-glyph fmt-{{ j.format }}{{ ' color' if j.farbe }}" aria-hidden="true"><span></span><span></span><span></span></div>
   <div class="job-body">
     <div class="job-title">{{ j.datei }}</div>
-    <div class="job-meta">{{ j.format }}, {{ 'Farbe' if j.farbe else 'Schwarzweiß' }}, {{ 'einseitig' if j.duplex == 'none' else 'beidseitig' }}, {{ j.druckseiten }} Seite{{ 'n' if j.druckseiten != 1 }}{% if j.kopien > 1 %} ({{ j.kopien }} Kopien){% endif %}</div>
+    <div class="job-meta">{{ j.format }}{{ ' hoch' if j.ausrichtung == 'portrait' else (' quer' if j.ausrichtung == 'landscape' else '') }}, {{ 'Farbe' if j.farbe else 'Schwarzweiß' }}, {{ 'einseitig' if j.duplex == 'none' else 'beidseitig' }}, {{ j.druckseiten }} Seite{{ 'n' if j.druckseiten != 1 }}{% if j.kopien > 1 %} ({{ j.kopien }} Kopien){% endif %}</div>
     {% if j.fehler and j.status == 'error' %}<div class="job-error">{{ j.fehler }}</div>{% endif %}
   </div>
   <div class="job-side">
@@ -125,6 +125,28 @@
     </fieldset>
 
     <fieldset class="group">
+      <legend>Ausrichtung</legend>
+      <div class="segmented three">
+        <label class="tile orient-tile">
+          <input type="radio" name="ausrichtung" value="auto" checked>
+          <span class="orient-glyph auto" aria-hidden="true"><i></i><i></i></span>
+          <span class="tile-title">Automatisch</span>
+          <span class="tile-sub" id="orient-detected">wie im PDF</span>
+        </label>
+        <label class="tile orient-tile">
+          <input type="radio" name="ausrichtung" value="portrait">
+          <span class="orient-glyph portrait" aria-hidden="true"><i></i></span>
+          <span class="tile-title">Hochformat</span>
+        </label>
+        <label class="tile orient-tile">
+          <input type="radio" name="ausrichtung" value="landscape">
+          <span class="orient-glyph landscape" aria-hidden="true"><i></i></span>
+          <span class="tile-title">Querformat</span>
+        </label>
+      </div>
+    </fieldset>
+
+    <fieldset class="group">
       <legend>Farbe</legend>
       <div class="segmented two">
         <label class="tile row-tile">
@@ -207,4 +229,4 @@
 <script type="application/json" id="presets-data">{{ presets_json | safe }}</script>
 <script type="application/json" id="duplex-formats">{{ duplex_formats_json | safe }}</script>
 {% endblock %}
-{% block scripts %}<script type="module" src="/static/app.js?v=4"></script>{% endblock %}
+{% block scripts %}<script type="module" src="/static/app.js?v=5"></script>{% endblock %}

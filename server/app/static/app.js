@@ -28,7 +28,12 @@ const val = (name) => form.querySelector(`input[name="${name}"]:checked`)?.value
 // bei Querformat die kurze – so stehen die Rückseiten immer richtig herum.
 function computeDuplex() {
   if (val("seiten_modus") !== "beidseitig") return "none";
-  return state.landscape ? "short" : "long";
+  return isLandscape() ? "short" : "long";
+}
+// Ausrichtung des Blatts: automatisch aus dem PDF oder fest gewählt.
+function isLandscape() {
+  const o = val("ausrichtung");
+  return o === "auto" ? state.landscape : o === "landscape";
 }
 const settings = () => ({
   format: val("format"),
@@ -92,7 +97,7 @@ async function loadFile(file) {
     const first = await state.doc.getPage(1);
     const vp = first.getViewport({ scale: 1 });
     state.landscape = vp.width > vp.height * 1.02;
-    $("file-meta").textContent = `${state.pages} Seite${state.pages === 1 ? "" : "n"}, ${fmtSize(file.size)}${state.landscape ? ", Querformat" : ""}`;
+    $("file-meta").textContent = `${state.pages} Seite${state.pages === 1 ? "" : "n"}, ${state.landscape ? "Querformat" : "Hochformat"}, ${fmtSize(file.size)}`;
     if (state.pages > MAX_PAGES) toast(`Das PDF hat ${state.pages} Seiten, erlaubt sind höchstens ${MAX_PAGES}.`, "error");
   } catch (e) {
     state.doc = null; state.pages = 0;
@@ -110,6 +115,7 @@ function clearFile() {
   if (state.doc) { state.doc.destroy(); state.doc = null; }
   fileInput.value = "";
   $("seiten").value = "";
+  setRadio("ausrichtung", "auto");
   $("preview").hidden = true;
   $("dropzone").hidden = false;
   $("thumbs").replaceChildren();
@@ -182,7 +188,7 @@ function layoutSheet() {
   const s = settings();
   const vp = $("viewport");
   const [wMm, hMm] = PAPER_MM[s.format] || PAPER_MM.A4;
-  const land = state.landscape;
+  const land = isLandscape();
   const sw = land ? hMm : wMm, sh = land ? wMm : hMm;
   // Gemeinsamer Maßstab: A3 füllt die Fläche, kleinere Formate wirken entsprechend kleiner.
   const availW = vp.clientWidth - 48, availH = vp.clientHeight - 56;
@@ -208,7 +214,9 @@ async function renderFace(canvas, pageNum, box, gen) {
   const base = page.getViewport({ scale: 1 });
   const pageLand = base.width > base.height;
   const sheetLand = box.w > box.h;
-  const rotation = (page.rotate + (pageLand !== sheetLand ? 90 : 0)) % 360;
+  // Automatisch: Seiten werden passend zum Blatt gedreht. Feste Ausrichtung: Seite bleibt, wie sie ist.
+  const autoRotate = val("ausrichtung") === "auto";
+  const rotation = (page.rotate + (autoRotate && pageLand !== sheetLand ? 90 : 0)) % 360;
   const rv = page.getViewport({ scale: 1, rotation });
   const margin = Math.min(box.w, box.h) * 0.03; // ca. 4–5 mm unbedruckbarer Rand
   const scale = Math.min((box.w - 2 * margin) / rv.width, (box.h - 2 * margin) / rv.height);
@@ -304,6 +312,7 @@ function demoFlip() {
 }
 
 function update() {
+  $("orient-detected").textContent = state.doc ? (state.landscape ? "Querformat erkannt" : "Hochformat erkannt") : "wie im PDF";
   updateDuplexAvailability();
   const s = settings();
   const r = parseRange($("seiten").value, state.pages);
@@ -375,7 +384,7 @@ form.addEventListener("change", (e) => {
   const name = e.target.name;
   if (name === "preset") applyPreset(e.target.value);
   else if (["format", "farbe", "seiten_modus", "kopien"].includes(name)) dropPreset();
-  if (name === "seiten_modus") state.back = false;
+  if (name === "seiten_modus" || name === "ausrichtung") state.back = false;
   if (name !== "datei") update();
   if (name === "seiten_modus") demoFlip();
 });
@@ -467,7 +476,8 @@ function jobItem(j) {
   g.setAttribute("aria-hidden", "true"); g.append(el("span"), el("span"), el("span"));
   const body = el("div", "job-body");
   body.append(el("div", "job-title", j.datei));
-  let meta = `${j.format}, ${j.farbe ? "Farbe" : "Schwarzweiß"}, ${j.duplex === "none" ? "einseitig" : "beidseitig"}, ${j.druckseiten} Seite${j.druckseiten === 1 ? "" : "n"}`;
+  const orient = j.ausrichtung === "portrait" ? " hoch" : j.ausrichtung === "landscape" ? " quer" : "";
+  let meta = `${j.format}${orient}, ${j.farbe ? "Farbe" : "Schwarzweiß"}, ${j.duplex === "none" ? "einseitig" : "beidseitig"}, ${j.druckseiten} Seite${j.druckseiten === 1 ? "" : "n"}`;
   if (j.kopien > 1) meta += ` (${j.kopien} Kopien)`;
   body.append(el("div", "job-meta", meta));
   if (j.fehler && j.status === "error") body.append(el("div", "job-error", j.fehler));

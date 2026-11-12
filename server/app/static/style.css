@@ -344,6 +344,15 @@ legend ~ * { clear: both; }
 .swatch.cmy i:nth-child(2) { background: var(--magenta); }
 .swatch.cmy i:nth-child(3) { background: var(--yellow); }
 .tile:has(input:checked) .swatch i { box-shadow: 0 0 0 1.5px var(--accent-soft); }
+.orient-tile { padding: 10px 4px 9px; }
+.orient-glyph { position: relative; height: 30px; width: 40px; display: grid; place-items: center; margin-bottom: 5px; }
+.orient-glyph i { display: block; background: var(--paper); border: 1.5px solid var(--ink-2); border-radius: 2px; }
+.orient-glyph.portrait i { width: 19px; height: 26px; }
+.orient-glyph.landscape i { width: 30px; height: 21px; }
+.orient-glyph.auto i { position: absolute; }
+.orient-glyph.auto i:first-child { width: 17px; height: 23px; left: 6px; top: 1px; }
+.orient-glyph.auto i:last-child { width: 24px; height: 17px; right: 3px; bottom: 1px; }
+.tile:has(input:checked) .orient-glyph i { border-color: var(--accent); }
 .mode-ic { width: 34px; height: 27px; color: var(--ink-2); flex: none; }
 .tile:has(input:checked) .mode-ic { color: var(--accent); }
 .tile-text { display: grid; text-align: left; line-height: 1.25; }

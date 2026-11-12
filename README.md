@@ -376,6 +376,11 @@ Warnungen (z. B. `media-empty`, `marker-supply-low`) und **Tintenstände** aus, 
 - [ ] `--test-print` A4 s/w einseitig, A4 duplex lange Kante, A3 farbig: Ergebnis am Papier kontrollieren
 - [ ] **A3 duplex** am 7740 testen. Wenn der Duplexer A3 nicht kann: `DUPLEX_FORMATS=A4` setzen.
 - [ ] Kopien = 2 und Seitenbereich `2-3` werden eingehalten
+- [ ] **Ausrichtung:** Querformat-PDF mit „Automatisch“ drucken, es kommt quer heraus. Dasselbe PDF mit „Hochformat“
+  drucken. Für feste Ausrichtung sendet der Agent `portrait`/`landscape` an SumatraPDF (CUPS: `orientation-requested`,
+  IPP: `orientation-requested`). Bei „Automatisch“ dreht SumatraPDF die Seiten selbst passend.
+- [ ] **Beidseitig mit Querformat:** Die Rückseiten stehen beim seitlichen Umblättern richtig herum (die App wählt hier
+  automatisch die kurze Kante).
 - [ ] Farbe/s-w: Ein farbiges PDF mit „Schwarzweiß“ drucken, es kommt ohne Farbtinte heraus
 - [ ] Preset „Abgabe A3 farbig“ landet auf Instanz `HP7740_A3_farbe` (steht im Agent-Log: `Route '...'`)
 - [ ] `--check-ipp` ausgeführt, Ergebnis notiert (PDF ja/nein)

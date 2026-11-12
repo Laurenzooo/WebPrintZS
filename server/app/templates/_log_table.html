@@ -12,6 +12,7 @@
       <td>
         <span class="tag">{{ j.format }}</span>
         <span class="tag {{ 'tag-color' if j.color }}">{{ 'Farbe' if j.color else 's/w' }}</span>
+        {% if j.orientation and j.orientation != 'auto' %}<span class="tag">{{ 'Hoch' if j.orientation == 'portrait' else 'Quer' }}</span>{% endif %}
         {% if j.duplex != 'none' %}<span class="tag">{{ 'Duplex lang' if j.duplex == 'long' else 'Duplex kurz' }}</span>{% endif %}
         {% if j.copies > 1 %}<span class="tag">{{ j.copies }}×</span>{% endif %}
         {% if j.page_range %}<div class="cell-sub">Seiten {{ j.page_range }}</div>{% endif %}

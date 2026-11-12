@@ -24,6 +24,7 @@ CREATE TABLE IF NOT EXISTS jobs (
     copies       INTEGER NOT NULL CHECK (copies >= 1),
     page_range   TEXT,
     preset       TEXT,
+    orientation  TEXT    NOT NULL DEFAULT 'auto' CHECK (orientation IN ('auto', 'portrait', 'landscape')),
     user_name    TEXT    NOT NULL,
     session_id   TEXT    NOT NULL,
     ip           TEXT    NOT NULL,
@@ -55,6 +56,10 @@ def init(path: str) -> None:
     with connect() as c:
         c.execute("PRAGMA journal_mode=WAL")
         c.executescript(SCHEMA)
+        # Migration: Spalte für Ausrichtung nachrüsten (ältere Datenbanken)
+        cols = {r["name"] for r in c.execute("PRAGMA table_info(jobs)")}
+        if "orientation" not in cols:
+            c.execute("ALTER TABLE jobs ADD COLUMN orientation TEXT NOT NULL DEFAULT 'auto'")
 
 
 @contextmanager

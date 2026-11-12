@@ -217,6 +217,7 @@ def print_job(
     color: bool = True,
     page_ranges: list[tuple[int, int]] | None = None,
     scaling: str | None = "fit",
+    orientation: str | None = None,
     document_format: str = "application/pdf",
     timeout: float = 120,
 ) -> int:
@@ -231,6 +232,8 @@ def print_job(
         job_attrs.append((RANGE, "page-ranges", page_ranges))
     if scaling:
         job_attrs.append((KEYWORD, "print-scaling", scaling))
+    if orientation in ("portrait", "landscape"):
+        job_attrs.append((ENUM, "orientation-requested", 3 if orientation == "portrait" else 4))
     op = [
         (NAME, "requesting-user-name", user[:60] or "druckagent"),
         (NAME, "job-name", job_name[:200] or "druckauftrag"),
