@@ -333,8 +333,8 @@ legend ~ * { clear: both; }
 .segmented { display: grid; gap: 8px; }
 .segmented.two { grid-template-columns: 1fr 1fr; }
 .segmented.three { grid-template-columns: repeat(3, 1fr); }
-.row-tile { grid-auto-flow: column; justify-content: start; gap: 10px; padding: 9px 12px; }
-.swatch { display: inline-flex; }
+.row-tile { grid-auto-flow: column; justify-content: center; align-items: center; gap: 10px; padding: 9px 12px; }
+.swatch { display: inline-flex; align-items: center; }
 .swatch i { width: 14px; height: 14px; border-radius: 50%; display: block; margin-left: -5px; box-shadow: 0 0 0 1.5px var(--surface); }
 .swatch i:first-child { margin-left: 0; }
 .swatch.mono i:nth-child(1) { background: #2B2A27; }
