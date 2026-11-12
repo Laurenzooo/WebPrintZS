@@ -1,108 +1,150 @@
 {% extends "base.html" %}
-{% block title %}Admin – {{ site_title }}{% endblock %}
-{% block nav %}{% include "_admin_nav.html" %}{% endblock %}
+{% block title %}Verwaltung – {{ site_title }}{% endblock %}
+{% block body_class %}admin{% endblock %}
+{% block header %}{% set active = 'overview' %}{% include "_admin_nav.html" %}{% endblock %}
+{% block main_class %}admin-main{% endblock %}
 {% block content %}
-<section class="card">
-  <h1>Druck-Agent</h1>
-  <div class="agent {{ 'online' if agent.online else 'offline' }}">
-    <span class="dot"></span>
+{% set t = stats.totals %}
+
+<div class="admin-grid">
+  <section class="panel-card agent-card {{ 'is-online' if agent.online else 'is-offline' }}">
+    <div class="agent-head">
+      <span class="agent-dot"></span>
+      <div>
+        <h1>{% if not agent.last_seen %}Druck-PC noch nie verbunden{% elif agent.online %}Druck-PC verbunden{% else %}Druck-PC offline{% endif %}</h1>
+        <p class="muted">
+          {% if agent.last_seen %}Letztes Lebenszeichen {{ agent.last_seen | localtime }}, vor {{ agent.age_s | int }} s{% else %}Agent installieren und <code>server_url</code> sowie <code>api_token</code> eintragen.{% endif %}
+        </p>
+      </div>
+    </div>
     {% if agent.last_seen %}
-      {{ 'Online' if agent.online else 'Offline' }} – zuletzt gesehen {{ agent.last_seen | localtime }}
-      ({{ agent.age_s | int }} s her)
+    <dl class="facts">
+      <div><dt>Rechner</dt><dd>{{ agent.hostname or '–' }}</dd></div>
+      <div><dt>Druckweg</dt><dd>{{ agent.method or '–' }}</dd></div>
+      <div><dt>Drucker</dt><dd>{{ agent.printer or '–' }}</dd></div>
+      <div><dt>Agent-Version</dt><dd>{{ agent.version or '–' }}</dd></div>
+    </dl>
+    {% if agent.message %}<p class="agent-msg">{{ agent.message }}</p>{% endif %}
+    {% endif %}
+  </section>
+
+  <section class="panel-card ink-card">
+    <h2>Tinte</h2>
+    {% set ps = agent.printer_status %}
+    {% if ps and ps.markers %}
+      <div class="cartridges">
+        {% for m in ps.markers %}
+        {% set lvl = m.level if (m.level is not none and m.level >= 0) else none %}
+        <figure class="cartridge {{ 'low' if lvl is not none and lvl < 15 }}">
+          <svg viewBox="0 0 36 96" role="img" aria-label="{{ marker_label(m.name) }}: {{ lvl if lvl is not none else 'unbekannt' }} %">
+            <rect x="1" y="1" width="34" height="94" rx="7" class="cart-shell"/>
+            {% if lvl is not none %}
+            <rect x="5" y="{{ 5 + 86 * (100 - lvl) / 100 }}" width="26" height="{{ 86 * lvl / 100 }}" rx="4" fill="{{ marker_color(m.name) }}"/>
+            {% endif %}
+          </svg>
+          <figcaption><span>{{ marker_label(m.name) }}</span><strong>{{ lvl ~ ' %' if lvl is not none else '?' }}</strong></figcaption>
+        </figure>
+        {% endfor %}
+      </div>
+      <p class="printer-state">Drucker {{ printer_state_de(ps.state) }}{% for r in printer_reasons_de(ps.reasons) %}<span class="tag tag-warn">{{ r }}</span>{% endfor %}</p>
     {% else %}
-      Noch nie verbunden.
+      <p class="empty-note">Tintenstände erscheinen, sobald im Agenten <code>[ipp] status_uri</code> gesetzt ist.</p>
     {% endif %}
-  </div>
-  {% if agent.last_seen %}
-  <dl class="kv">
-    <dt>Rechner</dt><dd>{{ agent.hostname or '–' }} ({{ agent.ip or '?' }})</dd>
-    <dt>Version / Methode</dt><dd>{{ agent.version or '–' }} / {{ agent.method or '–' }}</dd>
-    <dt>Drucker</dt><dd>{{ agent.printer or '–' }}</dd>
-    <dt>Letzter Heartbeat</dt><dd>{{ agent.heartbeat_at | localtime }}</dd>
-    {% if agent.message %}<dt>Meldung</dt><dd>{{ agent.message }}</dd>{% endif %}
-  </dl>
-  {% set ps = agent.printer_status %}
-  {% if ps %}
-    <h3>Druckerstatus (IPP)</h3>
-    <p>{{ ps.state or '?' }}{% if ps.reasons %} – {{ ps.reasons | join(', ') }}{% endif %}</p>
-    {% if ps.markers %}
-    <ul class="markers">
-      {% for m in ps.markers %}
-      <li><span>{{ m.name }}</span>
-        {% if m.level is not none and m.level >= 0 %}
-          <meter min="0" max="100" low="15" optimum="100" value="{{ m.level }}">{{ m.level }} %</meter> {{ m.level }} %
-        {% else %}<span class="muted">unbekannt</span>{% endif %}
-      </li>
-      {% endfor %}
-    </ul>
-    {% endif %}
-  {% endif %}
-  {% endif %}
+  </section>
+</div>
+
+<section class="metrics" aria-label="Letzte 30 Tage">
+  <div class="metric"><span class="metric-value">{{ t.pages }}</span><span class="metric-label">Druckseiten in 30 Tagen</span></div>
+  <div class="metric"><span class="metric-value">{{ t.sheets }}</span><span class="metric-label">Blatt Papier</span></div>
+  <div class="metric"><span class="metric-value">{{ ((t.color_pages / t.pages * 100) | round | int) if t.pages else 0 }} %</span><span class="metric-label">davon farbig</span></div>
+  <div class="metric"><span class="metric-value">{{ t.users }}</span><span class="metric-label">Personen</span></div>
+  <div class="metric {{ 'has-errors' if stats.errors }}"><span class="metric-value">{{ stats.errors }}</span><span class="metric-label">Fehlgeschlagen</span></div>
 </section>
 
-<section class="card">
-  <h2>Warteschlange ({{ queue | length }})</h2>
+<section class="panel-card">
+  <div class="card-head">
+    <h2>Warteschlange</h2>
+    <span class="count">{{ queue | length }}</span>
+  </div>
   {% if queue %}
-  <div class="table-wrap"><table>
-    <thead><tr><th>Zeit</th><th>Nutzer</th><th>Datei</th><th>Einstellungen</th><th>Status</th><th></th></tr></thead>
+  <div class="table-wrap"><table class="table">
+    <thead><tr><th>Zeit</th><th>Person</th><th>Datei</th><th>Einstellungen</th><th>Status</th><th><span class="visually-hidden">Aktion</span></th></tr></thead>
     <tbody>
     {% for j in queue %}
       <tr>
-        <td>{{ j.created_at | localtime }}</td>
+        <td class="nowrap">{{ j.created_at | localtime }}</td>
         <td>{{ j.user_name }}</td>
-        <td class="fn">{{ j.filename }}</td>
-        <td>{{ j.format }} · {{ 'Farbe' if j.color else 's/w' }} · {{ j.duplex }} · {{ j.copies }}× · {{ j.print_pages }} S.{% if j.page_range %} ({{ j.page_range }}){% endif %}</td>
-        <td><span class="badge s-{{ j.status }}">{{ STATUS_LABELS[j.status] }}</span></td>
-        <td>
-          <form method="post" action="/admin/jobs/{{ j.id }}/cancel" class="inline">
+        <td class="cell-file"><div class="cell-main">{{ j.filename }}</div><div class="cell-sub">{{ j.print_pages }} Seiten, {{ j.sheets }} Blatt</div></td>
+        <td><span class="tag">{{ j.format }}</span> <span class="tag {{ 'tag-color' if j.color }}">{{ 'Farbe' if j.color else 's/w' }}</span>{% if j.duplex != 'none' %} <span class="tag">Duplex</span>{% endif %}{% if j.copies > 1 %} <span class="tag">{{ j.copies }}×</span>{% endif %}</td>
+        <td><span class="status s-{{ j.status }}">{{ STATUS_LABELS[j.status] }}</span></td>
+        <td class="actions">
+          <form method="post" action="/admin/jobs/{{ j.id }}/cancel">
             <input type="hidden" name="csrf" value="{{ csrf }}">
-            <button type="submit" class="link danger">Abbrechen</button>
+            <button type="submit" class="btn btn-danger-soft btn-sm">Abbrechen</button>
           </form>
         </td>
       </tr>
     {% endfor %}
     </tbody>
   </table></div>
-  {% else %}<p class="muted">Leer.</p>{% endif %}
+  {% else %}<p class="empty-note">Nichts in der Warteschlange.</p>{% endif %}
 </section>
 
-<section class="card">
-  <h2>Letzte Aufträge</h2>
+<div class="admin-grid even">
+  <section class="panel-card">
+    <h2>Verbrauch nach Format</h2>
+    {% if stats.by_format %}
+      {% set maxp = stats.by_format | map(attribute='pages') | max %}
+      <ul class="bars">
+        {% for r in stats.by_format %}
+        <li>
+          <span class="bar-label">{{ r.format }} {{ 'Farbe' if r.color else 's/w' }}</span>
+          <svg class="bar" viewBox="0 0 100 10" preserveAspectRatio="none" aria-hidden="true">
+            <rect width="100" height="10" rx="2" class="bar-track"/>
+            <rect width="{{ (r.pages / maxp * 100) if maxp else 0 }}" height="10" rx="2" class="{{ 'bar-fill-color' if r.color else 'bar-fill' }}"/>
+          </svg>
+          <span class="bar-value">{{ r.pages }} S. <span class="muted">/ {{ r.sheets }} Bl.</span></span>
+        </li>
+        {% endfor %}
+      </ul>
+    {% else %}<p class="empty-note">In den letzten 30 Tagen wurde nichts gedruckt.</p>{% endif %}
+  </section>
+  <section class="panel-card">
+    <h2>Nach Person</h2>
+    {% if stats.by_user %}
+      {% set maxu = stats.by_user | map(attribute='pages') | max %}
+      <ul class="bars">
+        {% for r in stats.by_user %}
+        <li>
+          <span class="bar-label">{{ r.user_name }}</span>
+          <svg class="bar" viewBox="0 0 100 10" preserveAspectRatio="none" aria-hidden="true">
+            <rect width="100" height="10" rx="2" class="bar-track"/>
+            <rect width="{{ (r.pages / maxu * 100) if maxu else 0 }}" height="10" rx="2" class="bar-fill"/>
+            <rect width="{{ (r.color_pages / maxu * 100) if maxu else 0 }}" height="10" rx="2" class="bar-fill-color"/>
+          </svg>
+          <span class="bar-value">{{ r.pages }} S.{% if r.color_pages %} <span class="muted">/ {{ r.color_pages }} farbig</span>{% endif %}</span>
+        </li>
+        {% endfor %}
+      </ul>
+    {% else %}<p class="empty-note">Noch keine Daten.</p>{% endif %}
+  </section>
+</div>
+
+<section class="panel-card">
+  <div class="card-head">
+    <h2>Letzte Aufträge</h2>
+    <a class="btn btn-secondary btn-sm" href="/admin/log">Ganzes Protokoll</a>
+  </div>
   {% include "_log_table.html" %}
-  <p><a href="/admin/log">Vollständiges Log</a> · <a href="/admin/log.csv">CSV-Export</a></p>
 </section>
 
-<section class="card">
-  <h2>Verbrauch (letzte 30 Tage, gedruckt)</h2>
-  {% if stats.by_format %}
-  <div class="table-wrap"><table>
-    <thead><tr><th>Format</th><th>Farbe</th><th>Aufträge</th><th>Seiten</th><th>Blatt</th></tr></thead>
-    <tbody>
-    {% for r in stats.by_format %}
-      <tr><td>{{ r.format }}</td><td>{{ 'Farbe' if r.color else 's/w' }}</td><td>{{ r.jobs }}</td><td>{{ r.pages }}</td><td>{{ r.sheets }}</td></tr>
-    {% endfor %}
-    </tbody>
-  </table></div>
-  <h3>Nach Nutzer</h3>
-  <div class="table-wrap"><table>
-    <thead><tr><th>Nutzer</th><th>Aufträge</th><th>Seiten</th><th>davon Farbe</th></tr></thead>
-    <tbody>
-    {% for r in stats.by_user %}
-      <tr><td>{{ r.user_name }}</td><td>{{ r.jobs }}</td><td>{{ r.pages }}</td><td>{{ r.color_pages }}</td></tr>
-    {% endfor %}
-    </tbody>
-  </table></div>
-  {% else %}<p class="muted">Noch keine gedruckten Aufträge.</p>{% endif %}
-  <p class="muted">Fehlgeschlagene Aufträge: {{ stats.errors }}</p>
-</section>
-
-<section class="card">
-  <h2>Konfiguration</h2>
-  <dl class="kv">
-    <dt>Max. Upload</dt><dd>{{ settings.max_upload_mb }} MB, {{ settings.max_pages }} Seiten, {{ settings.max_copies }} Kopien</dd>
-    <dt>Rate-Limit</dt><dd>{{ settings.jobs_per_hour }} Aufträge/Stunde{% if settings.pages_per_day %}, {{ settings.pages_per_day }} Seiten/Tag{% endif %}</dd>
-    <dt>Verfall</dt><dd>nicht gedruckt nach {{ settings.job_expire_hours }} h, Druck-Timeout {{ settings.printing_timeout_min }} min</dd>
-    <dt>Log-Aufbewahrung</dt><dd>{{ settings.log_retention_days }} Tage</dd>
+<section class="panel-card config-card">
+  <h2>Grenzen und Fristen</h2>
+  <dl class="facts">
+    <div><dt>Pro Auftrag</dt><dd>{{ settings.max_upload_mb }} MB, {{ settings.max_pages }} Seiten, {{ settings.max_copies }} Kopien</dd></div>
+    <div><dt>Rate-Limit</dt><dd>{{ settings.jobs_per_hour }} Aufträge pro Stunde{% if settings.pages_per_day %}, {{ settings.pages_per_day }} Seiten pro Tag{% endif %}</dd></div>
+    <div><dt>Verfall</dt><dd>nach {{ settings.job_expire_hours }} h ungedruckt, Druck-Timeout {{ settings.printing_timeout_min }} min</dd></div>
+    <div><dt>Protokoll</dt><dd>{{ settings.log_retention_days }} Tage aufbewahrt</dd></div>
   </dl>
 </section>
 {% endblock %}

@@ -1,20 +1,26 @@
 {% extends "base.html" %}
-{% block title %}Log – {{ site_title }}{% endblock %}
-{% block nav %}{% include "_admin_nav.html" %}{% endblock %}
+{% block title %}Protokoll – {{ site_title }}{% endblock %}
+{% block body_class %}admin{% endblock %}
+{% block header %}{% set active = 'log' %}{% include "_admin_nav.html" %}{% endblock %}
+{% block main_class %}admin-main{% endblock %}
 {% block content %}
-<section class="card">
-  <h1>Druck-Log <span class="muted">({{ total }})</span></h1>
-  <form method="get" action="/admin/log" class="row">
-    <input name="user" value="{{ user }}" placeholder="Nach Nutzer filtern">
-    <button type="submit">Filtern</button>
-    <a class="button" href="/admin/log.csv">CSV-Export</a>
+<section class="panel-card">
+  <div class="card-head">
+    <h1>Druckprotokoll</h1>
+    <span class="count">{{ total }}</span>
+  </div>
+  <form method="get" action="/admin/log" class="toolbar">
+    <input name="user" value="{{ user }}" placeholder="Nach Person filtern" aria-label="Nach Person filtern">
+    <button type="submit" class="btn btn-secondary">Filtern</button>
+    {% if user %}<a class="btn-text" href="/admin/log">Filter entfernen</a>{% endif %}
+    <a class="btn btn-secondary push-right" href="/admin/log.csv"><svg class="ic"><use href="#i-download"/></svg>CSV exportieren</a>
   </form>
   {% include "_log_table.html" %}
   {% if pages > 1 %}
-  <nav class="pager">
-    {% if page > 1 %}<a href="?page={{ page - 1 }}&user={{ user | urlencode }}">← neuer</a>{% endif %}
-    <span>Seite {{ page }} / {{ pages }}</span>
-    {% if page < pages %}<a href="?page={{ page + 1 }}&user={{ user | urlencode }}">älter →</a>{% endif %}
+  <nav class="pager" aria-label="Seiten">
+    {% if page > 1 %}<a class="btn btn-secondary btn-sm" href="?page={{ page - 1 }}&user={{ user | urlencode }}"><svg class="ic"><use href="#i-chev-l"/></svg>Neuere</a>{% endif %}
+    <span class="muted">Seite {{ page }} von {{ pages }}</span>
+    {% if page < pages %}<a class="btn btn-secondary btn-sm" href="?page={{ page + 1 }}&user={{ user | urlencode }}">Ältere<svg class="ic"><use href="#i-chev-r"/></svg></a>{% endif %}
   </nav>
   {% endif %}
 </section>

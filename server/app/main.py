@@ -8,6 +8,7 @@ import hmac
 import io
 import json
 import logging
+import mimetypes
 import os
 import re
 import secrets
@@ -44,6 +45,8 @@ logging.basicConfig(level=os.getenv("LOG_LEVEL", "INFO"), format="%(asctime)s %(
 log = logging.getLogger("druckdienst")
 
 BASE = Path(__file__).resolve().parent
+mimetypes.add_type("text/javascript", ".mjs")
+mimetypes.add_type("font/woff2", ".woff2")
 STATUS_LABELS = {
     "queued": "In Warteschlange",
     "printing": "Wird gedruckt",
@@ -127,14 +130,55 @@ def job_public(row) -> dict:
         "seiten": row["page_range"],
         "seitenzahl": row["pages"],
         "druckseiten": row["print_pages"],
+        "blatt": row["sheets"],
         "preset": row["preset"],
         "status": row["status"],
         "status_text": STATUS_LABELS[row["status"]],
         "fehler": row["error"],
         "erstellt": row["created_at"],
         "erstellt_lokal": fmt_local(row["created_at"], settings.display_tz),
+        "erstellt_zeit": fmt_local(row["created_at"], settings.display_tz, "%H:%M"),
+        "erstellt_tag": fmt_local(row["created_at"], settings.display_tz, "%d.%m."),
         "position": db.queue_position(row["id"]) if row["status"] == "queued" else None,
     }
+
+
+def marker_color(name: str) -> str:
+    n = (name or "").lower()
+    for key, col in (("cyan", "#00A3E0"), ("magenta", "#D6247A"), ("yellow", "#F2C200"),
+                     ("gelb", "#F2C200"), ("black", "#2B2A27"), ("schwarz", "#2B2A27")):
+        if key in n:
+            return col
+    return "#7A7975"
+
+
+PRINTER_STATES_DE = {"idle": "bereit", "processing": "druckt", "stopped": "angehalten", "nicht erreichbar": "nicht erreichbar"}
+PRINTER_REASONS_DE = {
+    "media-low": "Papier fast leer", "media-empty": "Papier leer", "media-needed": "Papier einlegen",
+    "media-jam": "Papierstau", "marker-supply-low": "Tinte niedrig", "marker-supply-empty": "Tinte leer",
+    "door-open": "Klappe offen", "cover-open": "Abdeckung offen", "input-tray-missing": "Papierfach fehlt",
+    "offline": "offline", "paused": "pausiert", "toner-low": "Toner niedrig", "toner-empty": "Toner leer",
+}
+
+
+def printer_state_de(state: str) -> str:
+    return PRINTER_STATES_DE.get(state or "", state or "unbekannt")
+
+
+def printer_reasons_de(reasons: list) -> list:
+    out = []
+    for r in reasons or []:
+        base = str(r).rsplit("-", 1)[0] if str(r).endswith(("-report", "-warning", "-error")) else str(r)
+        out.append(PRINTER_REASONS_DE.get(base, base))
+    return out
+
+
+def marker_label(name: str) -> str:
+    n = (name or "").lower()
+    for key, label in (("cyan", "Cyan"), ("magenta", "Magenta"), ("yellow", "Gelb"), ("black", "Schwarz")):
+        if key in n:
+            return label
+    return name
 
 
 class LoginLimiter:
@@ -198,7 +242,8 @@ templates.env.globals.update(
 )
 
 CSP = (
-    "default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'; "
+    "default-src 'self'; img-src 'self' data: blob:; style-src 'self'; script-src 'self'; "
+    "worker-src 'self'; font-src 'self'; "
     "frame-ancestors 'none'; form-action 'self'; base-uri 'none'"
 )
 
@@ -310,6 +355,7 @@ def index(request: Request):
         formats=settings.formats,
         duplex_formats_json=json.dumps(settings.duplex_formats),
         max_copies=settings.max_copies,
+        max_pages=settings.max_pages,
         max_upload_mb=settings.max_upload_mb,
         agent=agent_status(),
     )
@@ -588,6 +634,10 @@ def admin(request: Request):
         queue=db.active_jobs(),
         recent=recent,
         stats=db.stats_since(ago_iso(days=30)),
+        marker_color=marker_color,
+        marker_label=marker_label,
+        printer_state_de=printer_state_de,
+        printer_reasons_de=printer_reasons_de,
         settings=settings,
     )
 

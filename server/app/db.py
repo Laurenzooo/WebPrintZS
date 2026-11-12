@@ -207,7 +207,13 @@ def stats_since(since: str) -> dict:
         errors = c.execute(
             "SELECT COUNT(*) FROM jobs WHERE status = 'error' AND created_at >= ?", (since,)
         ).fetchone()[0]
-    return {"by_format": by_format, "by_user": by_user, "errors": errors}
+        totals = c.execute(
+            "SELECT COUNT(*) AS jobs, COALESCE(SUM(print_pages),0) AS pages, COALESCE(SUM(sheets),0) AS sheets, "
+            "COALESCE(SUM(CASE WHEN color = 1 THEN print_pages ELSE 0 END),0) AS color_pages, "
+            "COUNT(DISTINCT user_name) AS users FROM jobs WHERE status = 'done' AND created_at >= ?",
+            (since,),
+        ).fetchone()
+    return {"by_format": by_format, "by_user": by_user, "errors": errors, "totals": totals}
 
 
 # ---------------------------------------------------------------- Key/Value (Agent-Status)

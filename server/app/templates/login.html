@@ -1,20 +1,36 @@
 {% extends "base.html" %}
 {% block title %}Anmelden – {{ site_title }}{% endblock %}
+{% block body_class %}auth{% endblock %}
 {% block content %}
-<section class="card narrow">
-  <h1>Anmelden</h1>
-  <p class="muted">Den Zugangscode findest du am Drucker im Arbeitsraum.</p>
-  <form method="post" action="/login">
-    <input type="hidden" name="csrf" value="{{ csrf }}">
-    <label>Zugangscode
-      <input name="code" type="password" autocomplete="current-password" required autofocus>
-    </label>
-    <label>Dein Name
-      <input name="name" value="{{ name }}" maxlength="40" autocomplete="name" required
-             placeholder="z. B. Alex M.">
-    </label>
-    <p class="hint">Der Name wird mit deinen Aufträgen im Druck-Log gespeichert (Papier- und Tonerverbrauch).</p>
-    <button type="submit" class="primary">Anmelden</button>
-  </form>
-</section>
+<div class="auth-wrap">
+  <div class="auth-art" aria-hidden="true">
+    <div class="sheet-fan">
+      <div class="fan-sheet a3"><span></span><span></span><span class="short"></span></div>
+      <div class="fan-sheet a4 gray"><span></span><span></span><span></span><span class="short"></span></div>
+      <div class="fan-sheet a5"><span class="accent"></span><span></span><span class="short"></span></div>
+    </div>
+  </div>
+  <section class="auth-card">
+    <div class="brand-row">
+      <svg class="logo"><use href="#i-logo"/></svg>
+      <span>{{ site_title }}</span>
+    </div>
+    <h1>Vom Platz aus drucken</h1>
+    <p class="lede">PDF hochladen, Einstellungen wählen, am Drucker im Arbeitsraum abholen.</p>
+    <form method="post" action="/login" class="stack">
+      <input type="hidden" name="csrf" value="{{ csrf }}">
+      <div class="field">
+        <label for="code">Zugangscode</label>
+        <input id="code" name="code" type="password" autocomplete="current-password" required autofocus>
+        <p class="help">Hängt am Drucker aus.</p>
+      </div>
+      <div class="field">
+        <label for="name">Dein Name</label>
+        <input id="name" name="name" value="{{ name }}" maxlength="40" autocomplete="name" required placeholder="Alex M.">
+        <p class="help">Steht im Druckprotokoll, damit der Verbrauch nachvollziehbar bleibt.</p>
+      </div>
+      <button type="submit" class="btn btn-primary btn-lg">Anmelden</button>
+    </form>
+  </section>
+</div>
 {% endblock %}

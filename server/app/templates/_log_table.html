@@ -1,27 +1,35 @@
 {% set rows = rows if rows is defined else recent %}
 {% if rows %}
-<div class="table-wrap"><table>
-  <thead><tr><th>Zeit</th><th>Nutzer</th><th>Datei</th><th>Einstellungen</th><th>Seiten</th><th>Status</th><th></th></tr></thead>
+<div class="table-wrap">
+<table class="table">
+  <thead><tr><th>Zeit</th><th>Person</th><th>Datei</th><th>Einstellungen</th><th class="num">Seiten</th><th>Status</th><th><span class="visually-hidden">Aktion</span></th></tr></thead>
   <tbody>
   {% for j in rows %}
     <tr>
-      <td>{{ j.created_at | localtime }}</td>
-      <td>{{ j.user_name }}<br><span class="muted small">{{ j.ip }}</span></td>
-      <td class="fn">{{ j.filename }}{% if j.preset %}<br><span class="muted small">{{ j.preset }}</span>{% endif %}</td>
-      <td>{{ j.format }} · {{ 'Farbe' if j.color else 's/w' }} · {{ j.duplex }} · {{ j.copies }}×{% if j.page_range %}<br><span class="muted small">S. {{ j.page_range }}</span>{% endif %}</td>
-      <td>{{ j.print_pages }} <span class="muted small">({{ j.sheets }} Bl.)</span></td>
-      <td><span class="badge s-{{ j.status }}">{{ STATUS_LABELS[j.status] }}</span>
-        {% if j.error %}<br><span class="small job-err">{{ j.error }}</span>{% endif %}</td>
+      <td class="nowrap">{{ j.created_at | localtime }}</td>
+      <td><div class="cell-main">{{ j.user_name }}</div><div class="cell-sub">{{ j.ip }}</div></td>
+      <td class="cell-file"><div class="cell-main">{{ j.filename }}</div>{% if j.preset %}<div class="cell-sub">Vorlage {{ j.preset }}</div>{% endif %}</td>
       <td>
+        <span class="tag">{{ j.format }}</span>
+        <span class="tag {{ 'tag-color' if j.color }}">{{ 'Farbe' if j.color else 's/w' }}</span>
+        {% if j.duplex != 'none' %}<span class="tag">{{ 'Duplex lang' if j.duplex == 'long' else 'Duplex kurz' }}</span>{% endif %}
+        {% if j.copies > 1 %}<span class="tag">{{ j.copies }}×</span>{% endif %}
+        {% if j.page_range %}<div class="cell-sub">Seiten {{ j.page_range }}</div>{% endif %}
+      </td>
+      <td class="num"><div class="cell-main">{{ j.print_pages }}</div><div class="cell-sub">{{ j.sheets }} Blatt</div></td>
+      <td><span class="status s-{{ j.status }}">{{ STATUS_LABELS[j.status] }}</span>
+        {% if j.error %}<div class="cell-sub cell-error">{{ j.error }}</div>{% endif %}</td>
+      <td class="actions">
         {% if j.has_file and j.status in ('error', 'cancelled', 'expired') %}
-        <form method="post" action="/admin/jobs/{{ j.id }}/requeue" class="inline">
+        <form method="post" action="/admin/jobs/{{ j.id }}/requeue">
           <input type="hidden" name="csrf" value="{{ csrf }}">
-          <button type="submit" class="link">Erneut drucken</button>
+          <button type="submit" class="btn btn-secondary btn-sm"><svg class="ic"><use href="#i-retry"/></svg>Erneut drucken</button>
         </form>
         {% endif %}
       </td>
     </tr>
   {% endfor %}
   </tbody>
-</table></div>
-{% else %}<p class="muted">Keine Einträge.</p>{% endif %}
+</table>
+</div>
+{% else %}<p class="empty-note">Noch keine Einträge.</p>{% endif %}

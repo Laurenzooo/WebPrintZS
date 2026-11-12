@@ -1,172 +1,513 @@
-// Druckdienst – Formular-Logik, Upload mit Fortschritt, Status-Aktualisierung.
-(function () {
-  "use strict";
-  const $ = (id) => document.getElementById(id);
-  const form = $("upload-form");
-  if (!form) return;
+// Druckdienst – Druckmaske mit Live-Vorschau (pdf.js lokal), Upload, Auftragsstatus.
+import * as pdfjs from "/static/vendor/pdf.min.mjs";
 
-  const presets = JSON.parse($("presets-data").textContent || "[]");
-  const duplexFormats = JSON.parse($("duplex-formats").textContent || "[]");
-  const presetSel = $("preset");
-  const fmtSel = $("format");
-  const duplexSel = $("duplex");
-  const copies = $("kopien");
-  const fileInput = $("datei");
-  const msg = $("form-msg");
-  const progress = $("progress");
-  const submit = $("submit");
-  const csrf = form.querySelector("input[name=csrf]").value;
-  const DUPLEX = { none: "einseitig", long: "beidseitig (lange Kante)", short: "beidseitig (kurze Kante)" };
-  let applyingPreset = false;
+pdfjs.GlobalWorkerOptions.workerSrc = "/static/vendor/pdf.worker.min.mjs";
 
-  function setColor(on) {
-    form.querySelector(`input[name=farbe][value="${on ? 1 : 0}"]`).checked = true;
+const $ = (id) => document.getElementById(id);
+const form = $("upload-form");
+const csrf = form.querySelector("input[name=csrf]").value;
+const fileInput = $("datei");
+const presets = JSON.parse($("presets-data").textContent || "[]");
+const duplexFormats = JSON.parse($("duplex-formats").textContent || "[]");
+const PAPER_MM = { A3: [297, 420], A4: [210, 297], A5: [148, 210], Letter: [216, 279] };
+const MAX_BYTES = Number(fileInput.dataset.maxBytes);
+const MAX_PAGES = Number(fileInput.dataset.maxPages);
+const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+const state = {
+  file: null, doc: null, pages: 0, landscape: false,
+  sequence: [],          // Seiten in Druckreihenfolge
+  rangeError: null,
+  sheet: 0, back: false,
+  renderGen: 0,
+};
+
+// ------------------------------------------------------------------ Formularwerte
+const val = (name) => form.querySelector(`input[name="${name}"]:checked`)?.value;
+const settings = () => ({
+  format: val("format"),
+  color: val("farbe") === "1",
+  duplex: val("duplex"),
+  copies: Math.max(1, Math.min(Number($("kopien").value) || 1, Number($("kopien").max))),
+  preset: val("preset") || "",
+});
+function setRadio(name, value) {
+  const el = form.querySelector(`input[name="${name}"][value="${value}"]`);
+  if (el && !el.disabled) el.checked = true;
+}
+
+// ------------------------------------------------------------------ Seitenbereiche
+function parseRange(str, n) {
+  const s = str.replace(/\s+/g, "").replace(/;/g, ",");
+  if (!s) return { pages: Array.from({ length: n }, (_, i) => i + 1) };
+  const pages = [];
+  for (const part of s.split(",")) {
+    if (!part) continue;
+    const m = part.match(/^(\d+)(?:-(\d+))?$/);
+    if (!m) return { error: `„${part}“ verstehe ich nicht. Beispiel: 1-3, 5` };
+    const a = Number(m[1]); const b = m[2] ? Number(m[2]) : a;
+    if (a < 1 || b < a) return { error: `„${part}“ ist kein gültiger Bereich.` };
+    if (n && b > n) return { error: `Seite ${b} gibt es nicht, das PDF hat ${n} Seiten.` };
+    for (let p = a; p <= b; p++) pages.push(p);
   }
+  if (!pages.length) return { error: "Mindestens eine Seite auswählen." };
+  return { pages };
+}
+function compress(sorted) {
+  const out = []; let i = 0;
+  while (i < sorted.length) {
+    let j = i;
+    while (j + 1 < sorted.length && sorted[j + 1] === sorted[j] + 1) j++;
+    out.push(i === j ? `${sorted[i]}` : `${sorted[i]}-${sorted[j]}`);
+    i = j + 1;
+  }
+  return out.join(", ");
+}
 
-  function updateDuplexAvailability() {
-    const allowed = duplexFormats.includes(fmtSel.value);
-    for (const opt of duplexSel.options) {
-      if (opt.value !== "none") opt.disabled = !allowed;
+// ------------------------------------------------------------------ Datei laden
+async function loadFile(file) {
+  if (!file) return;
+  if (file.size > MAX_BYTES) return toast(`Die Datei ist ${fmtSize(file.size)} groß, erlaubt sind ${fmtSize(MAX_BYTES)}.`, "error");
+  if (!/\.pdf$/i.test(file.name) && file.type !== "application/pdf") return toast("Nur PDF-Dateien lassen sich drucken.", "error");
+
+  state.file = file;
+  $("file-name").textContent = file.name;
+  $("file-meta").textContent = `${fmtSize(file.size)}, wird gelesen …`;
+  $("dropzone").hidden = true;
+  $("preview").hidden = false;
+  $("seiten").value = "";
+
+  try {
+    const data = new Uint8Array(await file.arrayBuffer());
+    if (state.doc) state.doc.destroy();
+    state.doc = await pdfjs.getDocument({ data, isEvalSupported: false, enableXfa: false }).promise;
+    state.pages = state.doc.numPages;
+    const first = await state.doc.getPage(1);
+    const vp = first.getViewport({ scale: 1 });
+    state.landscape = vp.width > vp.height * 1.02;
+    $("file-meta").textContent = `${state.pages} Seite${state.pages === 1 ? "" : "n"}, ${fmtSize(file.size)}${state.landscape ? ", Querformat" : ""}`;
+    if (state.pages > MAX_PAGES) toast(`Das PDF hat ${state.pages} Seiten, erlaubt sind höchstens ${MAX_PAGES}.`, "error");
+  } catch (e) {
+    state.doc = null; state.pages = 0;
+    const pw = e && e.name === "PasswordException";
+    $("file-meta").textContent = pw ? "Passwortgeschützt, bitte ohne Passwort exportieren." : "Keine lesbare PDF-Datei.";
+    toast(pw ? "Das PDF ist passwortgeschützt. Exportiere es ohne Passwort und lade es erneut hoch." : "Diese Datei lässt sich nicht als PDF lesen.", "error");
+  }
+  buildThumbs();
+  state.sheet = 0; state.back = false;
+  update();
+}
+
+function clearFile() {
+  state.file = null; state.pages = 0;
+  if (state.doc) { state.doc.destroy(); state.doc = null; }
+  fileInput.value = "";
+  $("seiten").value = "";
+  $("preview").hidden = true;
+  $("dropzone").hidden = false;
+  $("thumbs").replaceChildren();
+  update();
+}
+
+// ------------------------------------------------------------------ Miniaturen
+let thumbObserver = null;
+let thumbQueue = Promise.resolve();
+function buildThumbs() {
+  const wrap = $("thumbs");
+  wrap.replaceChildren();
+  if (thumbObserver) thumbObserver.disconnect();
+  if (!state.doc) return;
+  const doc = state.doc;
+  thumbObserver = new IntersectionObserver((entries) => {
+    for (const en of entries) {
+      if (!en.isIntersecting) continue;
+      thumbObserver.unobserve(en.target);
+      const btn = en.target;
+      thumbQueue = thumbQueue.then(() => renderThumb(doc, btn)).catch(() => {});
     }
-    if (!allowed) duplexSel.value = "none";
+  }, { root: wrap, rootMargin: "200px" });
+  const count = Math.min(state.pages, 500);
+  for (let p = 1; p <= count; p++) {
+    const b = document.createElement("button");
+    b.type = "button"; b.className = "thumb"; b.dataset.page = p;
+    b.setAttribute("aria-label", `Seite ${p}`);
+    b.append(document.createElement("canvas"));
+    const n = document.createElement("span"); n.className = "thumb-num"; n.textContent = p;
+    b.append(n);
+    b.addEventListener("click", () => togglePage(p));
+    wrap.append(b);
+    thumbObserver.observe(b);
   }
+}
+async function renderThumb(doc, btn) {
+  if (doc !== state.doc) return;
+  const page = await doc.getPage(Number(btn.dataset.page));
+  const vp1 = page.getViewport({ scale: 1 });
+  const h = 92, dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const vp = page.getViewport({ scale: (h / vp1.height) * dpr });
+  const cv = btn.querySelector("canvas");
+  cv.width = vp.width; cv.height = vp.height;
+  cv.style.width = `${vp.width / dpr}px`; cv.style.height = `${h}px`;
+  await page.render({ canvasContext: cv.getContext("2d"), viewport: vp }).promise;
+  btn.classList.add("ready");
+}
+function togglePage(p) {
+  const r = parseRange($("seiten").value, state.pages);
+  const set = new Set(r.pages || []);
+  if (set.has(p)) set.delete(p); else set.add(p);
+  if (!set.size) return toast("Mindestens eine Seite muss ausgewählt bleiben.", "error");
+  const sorted = [...set].sort((a, b) => a - b);
+  $("seiten").value = sorted.length === state.pages ? "" : compress(sorted);
+  state.sheet = 0; state.back = false;
+  update();
+}
 
-  function applyPreset() {
-    const p = presets.find((x) => x.id === presetSel.value);
-    const hint = $("preset-hint");
-    if (!p) { if (hint) hint.hidden = true; return; }
-    applyingPreset = true;
-    fmtSel.value = p.format;
-    updateDuplexAvailability();
-    setColor(p.farbe);
-    duplexSel.value = p.duplex;
-    copies.value = p.kopien;
-    applyingPreset = false;
-    if (hint) { hint.textContent = p.hinweis || ""; hint.hidden = !p.hinweis; }
+// ------------------------------------------------------------------ Blätter & Vorschau
+function sheets() {
+  const seq = state.sequence;
+  if (settings().duplex === "none") return seq.map((p) => [p, null]);
+  const out = [];
+  for (let i = 0; i < seq.length; i += 2) out.push([seq[i], seq[i + 1] ?? null]);
+  return out;
+}
+
+function layoutSheet() {
+  const s = settings();
+  const vp = $("viewport");
+  const [wMm, hMm] = PAPER_MM[s.format] || PAPER_MM.A4;
+  const land = state.landscape;
+  const sw = land ? hMm : wMm, sh = land ? wMm : hMm;
+  // Gemeinsamer Maßstab: A3 füllt die Fläche, kleinere Formate wirken entsprechend kleiner.
+  const availW = vp.clientWidth - 48, availH = vp.clientHeight - 56;
+  const pxPerMm = Math.max(0.3, Math.min(availW / (land ? 420 : 297), availH / (land ? 297 : 420)));
+  const sheet = $("sheet-stack");
+  sheet.style.width = `${Math.round(sw * pxPerMm)}px`;
+  sheet.style.height = `${Math.round(sh * pxPerMm)}px`;
+  $("paper-label").textContent = `${s.format} ${land ? "quer" : "hoch"}, ${land ? `${hMm} × ${wMm}` : `${wMm} × ${hMm}`} mm`;
+  return { w: sw * pxPerMm, h: sh * pxPerMm };
+}
+
+async function renderFace(canvas, pageNum, box, gen) {
+  const ctx = canvas.getContext("2d");
+  const face = canvas.parentElement;
+  if (!pageNum || !state.doc) {
+    canvas.width = 1; canvas.height = 1; ctx.clearRect(0, 0, 1, 1);
+    face.classList.add("is-empty");
+    return;
   }
+  face.classList.remove("is-empty");
+  const page = await state.doc.getPage(pageNum);
+  if (gen !== state.renderGen) return;
+  const base = page.getViewport({ scale: 1 });
+  const pageLand = base.width > base.height;
+  const sheetLand = box.w > box.h;
+  const rotation = (page.rotate + (pageLand !== sheetLand ? 90 : 0)) % 360;
+  const rv = page.getViewport({ scale: 1, rotation });
+  const margin = Math.min(box.w, box.h) * 0.03; // ca. 4–5 mm unbedruckbarer Rand
+  const scale = Math.min((box.w - 2 * margin) / rv.width, (box.h - 2 * margin) / rv.height);
+  const dpr = Math.min(window.devicePixelRatio || 1, 2.5);
+  const vp = page.getViewport({ scale: scale * dpr, rotation });
+  const off = document.createElement("canvas");
+  off.width = Math.ceil(vp.width); off.height = Math.ceil(vp.height);
+  await page.render({ canvasContext: off.getContext("2d"), viewport: vp }).promise;
+  if (gen !== state.renderGen) return;
+  canvas.width = off.width; canvas.height = off.height;
+  canvas.style.width = `${vp.width / dpr}px`; canvas.style.height = `${vp.height / dpr}px`;
+  ctx.drawImage(off, 0, 0);
+}
 
-  // Manuelle Änderung => Preset abwählen, damit das Log/Routing nicht falsch ist.
-  function manualChange() {
-    if (!applyingPreset && presetSel && presetSel.value) {
-      presetSel.value = "";
-      const hint = $("preset-hint");
-      if (hint) hint.hidden = true;
-    }
+async function renderPreview() {
+  if (!state.file) return;
+  const gen = ++state.renderGen;
+  const box = layoutSheet();
+  const list = sheets();
+  const s = settings();
+  state.sheet = Math.min(state.sheet, Math.max(0, list.length - 1));
+  const [front, back] = list[state.sheet] || [null, null];
+  const sheetEl = $("sheet");
+  const duplex = s.duplex !== "none";
+  // Wendeachse: lange Kante bei Hochformat = senkrecht (Y), kurze Kante = waagerecht (X); bei Querformat umgekehrt.
+  const axisY = (s.duplex === "long") !== state.landscape;
+  sheetEl.classList.toggle("axis-x", duplex && !axisY);
+  sheetEl.classList.toggle("flipped", duplex && state.back);
+  sheetEl.classList.toggle("duplex", duplex);
+
+  const stack = $("sheet-stack");
+  stack.dataset.copies = Math.min(s.copies, 3);
+  $("copies-badge").hidden = s.copies < 2;
+  $("copies-badge").textContent = `${s.copies} Kopien`;
+  $("stage-mono")?.remove();
+  document.querySelector(".stage").classList.toggle("mono", !s.color);
+
+  const n = list.length;
+  $("nav-text").textContent = n
+    ? `Blatt ${state.sheet + 1} von ${n}${duplex ? (state.back ? ", Rückseite" : ", Vorderseite") : ""}`
+    : "";
+  $("nav-prev").disabled = state.sheet === 0 && !(duplex && state.back);
+  $("nav-next").disabled = state.sheet >= n - 1 && !(duplex && !state.back);
+  $("nav-flip").hidden = !duplex;
+
+  await Promise.all([
+    renderFace($("cv-front"), front, box, gen),
+    duplex ? renderFace($("cv-back"), back, box, gen) : Promise.resolve(),
+  ]).catch(() => {});
+}
+
+function step(dir) {
+  const duplex = settings().duplex !== "none";
+  const n = sheets().length;
+  if (duplex) {
+    if (dir > 0 && !state.back) { state.back = true; return renderPreview(); }
+    if (dir < 0 && state.back) { state.back = false; return renderPreview(); }
   }
+  const next = state.sheet + dir;
+  if (next < 0 || next >= n) return;
+  state.sheet = next;
+  state.back = duplex && dir < 0;
+  renderPreview();
+}
 
-  if (presetSel) presetSel.addEventListener("change", applyPreset);
-  fmtSel.addEventListener("change", () => { updateDuplexAvailability(); manualChange(); });
-  [duplexSel, copies, ...form.querySelectorAll("input[name=farbe]")].forEach((el) =>
-    el.addEventListener("change", manualChange));
-  updateDuplexAvailability();
-
-  function showMsg(text, isError) {
-    msg.textContent = text;
-    msg.className = "flash" + (isError ? " error" : "");
-    msg.hidden = false;
-  }
-
-  form.addEventListener("submit", (ev) => {
-    ev.preventDefault();
-    msg.hidden = true;
-    const f = fileInput.files[0];
-    if (!f) return showMsg("Bitte eine PDF-Datei auswählen.", true);
-    if (f.size > Number(fileInput.dataset.maxBytes)) {
-      return showMsg("Datei zu groß (max. " + Math.round(fileInput.dataset.maxBytes / 1048576) + " MB).", true);
-    }
-    if (!/\.pdf$/i.test(f.name) && f.type !== "application/pdf") {
-      return showMsg("Nur PDF-Dateien sind erlaubt.", true);
-    }
-    const xhr = new XMLHttpRequest();
-    xhr.open("POST", "/upload");
-    xhr.setRequestHeader("X-Requested-With", "XMLHttpRequest");
-    xhr.responseType = "json";
-    const bar = progress.querySelector("progress");
-    const label = progress.querySelector("span");
-    progress.hidden = false;
-    submit.disabled = true;
-    xhr.upload.onprogress = (e) => {
-      if (e.lengthComputable) {
-        const pct = Math.round((e.loaded / e.total) * 100);
-        bar.value = pct;
-        label.textContent = pct < 100 ? pct + " %" : "wird geprüft …";
-      }
-    };
-    xhr.onloadend = () => {
-      submit.disabled = false;
-      progress.hidden = true;
-      const res = xhr.response || {};
-      if (xhr.status === 200 && res.ok) {
-        showMsg(res.message, false);
-        fileInput.value = "";
-        $("seiten").value = "";
-        refresh();
-      } else if (xhr.status === 401) {
-        window.location = "/login";
-      } else {
-        showMsg(res.error || "Upload fehlgeschlagen (Netzwerkfehler?).", true);
-      }
-    };
-    xhr.send(new FormData(form));
+// ------------------------------------------------------------------ Zustand → Oberfläche
+function updateDuplexAvailability() {
+  const fmt = val("format");
+  const ok = duplexFormats.includes(fmt);
+  form.querySelectorAll('input[name="duplex"]').forEach((el) => {
+    if (el.value !== "none") el.disabled = !ok;
   });
+  if (!ok && val("duplex") !== "none") setRadio("duplex", "none");
+  const hint = $("duplex-hint");
+  if (!ok) { hint.textContent = `${fmt} kann nur einseitig gedruckt werden.`; hint.hidden = false; }
+  else if (state.landscape && val("duplex") === "long") {
+    hint.textContent = "Querformat: Mit „nach oben blättern“ stehen die Rückseiten beim Durchblättern richtig herum.";
+    hint.hidden = false;
+  } else hint.hidden = true;
+}
 
-  // ---------------------------------------------------------------- Status
-  function el(tag, cls, text) {
-    const e = document.createElement(tag);
-    if (cls) e.className = cls;
-    if (text !== undefined) e.textContent = text;
-    return e;
+function update() {
+  updateDuplexAvailability();
+  const s = settings();
+  const r = parseRange($("seiten").value, state.pages);
+  state.rangeError = r.error || null;
+  state.sequence = r.pages || [];
+  const help = $("seiten-help");
+  help.textContent = r.error || (state.pages ? `${state.sequence.length} von ${state.pages} Seiten` : "z. B. 1-3, 5");
+  help.classList.toggle("is-error", !!r.error);
+  $("seiten").setAttribute("aria-invalid", r.error ? "true" : "false");
+  $("seiten-reset").hidden = !$("seiten").value;
+
+  // Miniaturen markieren
+  const sel = new Set(state.sequence);
+  $("thumbs").querySelectorAll(".thumb").forEach((t) => {
+    const on = sel.has(Number(t.dataset.page));
+    t.classList.toggle("off", !on);
+    t.setAttribute("aria-pressed", on ? "true" : "false");
+  });
+  document.querySelector(".stage").classList.toggle("mono", !s.color);
+
+  // Zusammenfassung
+  const btn = $("submit");
+  const main = $("sum-main"), sub = $("sum-sub");
+  if (!state.file) {
+    main.textContent = "Noch keine Datei gewählt";
+    sub.textContent = "Die Vorschau zeigt, wie der Druck aussieht.";
+    btn.disabled = true;
+  } else if (!state.doc) {
+    main.textContent = "Datei kann nicht gedruckt werden";
+    sub.textContent = "Wähle ein anderes PDF.";
+    btn.disabled = true;
+  } else if (r.error) {
+    main.textContent = "Seitenbereich prüfen";
+    sub.textContent = r.error;
+    btn.disabled = true;
+  } else {
+    const pages = state.sequence.length * s.copies;
+    const perCopy = s.duplex === "none" ? state.sequence.length : Math.ceil(state.sequence.length / 2);
+    const sheetsTotal = perCopy * s.copies;
+    main.textContent = `${pages} Druckseite${pages === 1 ? "" : "n"} auf ${sheetsTotal} Blatt ${s.format}`;
+    const parts = [s.color ? "Farbe" : "Schwarzweiß",
+      s.duplex === "none" ? "einseitig" : s.duplex === "long" ? "beidseitig wie ein Buch" : "beidseitig, nach oben blättern"];
+    if (s.copies > 1) parts.push(`${s.copies} Kopien`);
+    sub.textContent = parts.join(", ");
+    btn.disabled = state.pages > MAX_PAGES;
   }
+  renderPreview();
+}
 
-  function renderJobs(jobs) {
-    const list = $("jobs");
-    list.replaceChildren();
-    if (!jobs.length) { list.append(el("li", "empty muted", "Noch keine Aufträge.")); return; }
-    for (const j of jobs) {
-      const li = el("li", "job s-" + j.status);
-      const main = el("div", "job-main");
-      main.append(el("strong", "fn", j.datei));
-      main.append(el("span", "badge s-" + j.status, j.status_text + (j.position ? " · Platz " + j.position : "")));
-      li.append(main);
-      li.append(el("div", "job-meta",
-        [j.erstellt_lokal, j.format, j.farbe ? "Farbe" : "s/w", DUPLEX[j.duplex], j.kopien + "×", j.druckseiten + " S."].join(" · ")));
-      if (j.fehler && j.status === "error") li.append(el("div", "job-err", j.fehler));
-      if (j.status === "queued") {
-        const f = el("form", "inline");
-        f.method = "post";
-        f.action = "/jobs/" + encodeURIComponent(j.id) + "/cancel";
-        const h = el("input"); h.type = "hidden"; h.name = "csrf"; h.value = csrf;
-        const b = el("button", "link danger", "Abbrechen"); b.type = "submit";
-        f.append(h, b);
-        li.append(f);
-      }
-      list.append(li);
+// ------------------------------------------------------------------ Vorlagen
+function applyPreset(id) {
+  const p = presets.find((x) => x.id === id);
+  const hint = $("preset-hint");
+  if (!p) { if (hint) hint.hidden = true; return; }
+  setRadio("format", p.format);
+  updateDuplexAvailability();
+  setRadio("farbe", p.farbe ? "1" : "0");
+  setRadio("duplex", p.duplex);
+  $("kopien").value = p.kopien;
+  if (hint) { hint.textContent = p.hinweis || ""; hint.hidden = !p.hinweis; }
+}
+function dropPreset() {
+  const custom = form.querySelector('input[name="preset"][value=""]');
+  if (custom && !custom.checked) { custom.checked = true; const h = $("preset-hint"); if (h) h.hidden = true; }
+}
+
+// ------------------------------------------------------------------ Ereignisse
+form.addEventListener("change", (e) => {
+  const name = e.target.name;
+  if (name === "preset") applyPreset(e.target.value);
+  else if (["format", "farbe", "duplex", "kopien"].includes(name)) dropPreset();
+  if (name === "duplex") state.back = false;
+  if (name !== "datei") update();
+});
+$("seiten").addEventListener("input", () => { state.sheet = 0; state.back = false; update(); });
+$("seiten-reset").addEventListener("click", () => { $("seiten").value = ""; update(); });
+$("kopien").addEventListener("input", () => { dropPreset(); update(); });
+form.querySelectorAll(".step").forEach((b) => b.addEventListener("click", () => {
+  const k = $("kopien");
+  k.value = Math.max(1, Math.min(Number(k.max), (Number(k.value) || 1) + Number(b.dataset.step)));
+  dropPreset(); update();
+}));
+fileInput.addEventListener("change", () => loadFile(fileInput.files[0]));
+$("file-clear").addEventListener("click", clearFile);
+$("nav-prev").addEventListener("click", () => step(-1));
+$("nav-next").addEventListener("click", () => step(1));
+$("nav-flip").addEventListener("click", () => { state.back = !state.back; renderPreview(); });
+$("sheet").addEventListener("click", () => { if (settings().duplex !== "none") { state.back = !state.back; renderPreview(); } });
+document.addEventListener("keydown", (e) => {
+  if (!state.file || e.target.matches("input, textarea, select")) return;
+  if (e.key === "ArrowRight") step(1);
+  if (e.key === "ArrowLeft") step(-1);
+});
+
+// Drag & Drop auf die ganze Vorschaufläche
+const stage = document.querySelector(".stage");
+let dragDepth = 0;
+stage.addEventListener("dragenter", (e) => { e.preventDefault(); dragDepth++; stage.classList.add("dragging"); });
+stage.addEventListener("dragover", (e) => e.preventDefault());
+stage.addEventListener("dragleave", () => { if (--dragDepth <= 0) { dragDepth = 0; stage.classList.remove("dragging"); } });
+stage.addEventListener("drop", (e) => {
+  e.preventDefault(); dragDepth = 0; stage.classList.remove("dragging");
+  const f = e.dataTransfer.files[0];
+  if (!f) return;
+  const dt = new DataTransfer(); dt.items.add(f); fileInput.files = dt.files;
+  loadFile(f);
+});
+
+let resizeTimer;
+new ResizeObserver(() => { clearTimeout(resizeTimer); resizeTimer = setTimeout(renderPreview, 120); }).observe($("viewport"));
+
+// ------------------------------------------------------------------ Absenden
+form.addEventListener("submit", (ev) => {
+  ev.preventDefault();
+  if ($("submit").disabled || !state.file) return;
+  const fd = new FormData(form);
+  fd.set("kopien", settings().copies);
+  const xhr = new XMLHttpRequest();
+  xhr.open("POST", "/upload");
+  xhr.setRequestHeader("X-Requested-With", "XMLHttpRequest");
+  xhr.responseType = "json";
+  const bar = $("upload-bar"), prog = $("upload-progress"), btn = $("submit"), label = $("submit-label");
+  prog.hidden = false; btn.disabled = true; btn.classList.add("busy"); label.textContent = "Wird hochgeladen …";
+  xhr.upload.onprogress = (e) => {
+    if (!e.lengthComputable) return;
+    const pct = (e.loaded / e.total) * 100;
+    bar.style.width = `${pct}%`;
+    if (pct >= 100) label.textContent = "Wird geprüft …";
+  };
+  xhr.onloadend = () => {
+    prog.hidden = true; bar.style.width = "0"; btn.classList.remove("busy"); label.textContent = "Drucken";
+    const res = xhr.response || {};
+    if (xhr.status === 200 && res.ok) {
+      toast(res.message, "ok");
+      clearFile();
+      refreshJobs(true);
+    } else if (xhr.status === 401) {
+      window.location = "/login";
+    } else {
+      toast(res.error || "Hochladen fehlgeschlagen. Prüfe die Verbindung und versuche es erneut.", "error");
+      update();
     }
-  }
+  };
+  xhr.send(fd);
+});
 
-  function renderAgent(online) {
-    const banner = $("agent-banner");
-    banner.className = "agent " + (online ? "online" : "offline");
-    $("agent-text").textContent = online
-      ? "Drucker bereit"
-      : "Druck-PC offline – Aufträge werden gedruckt, sobald er wieder erreichbar ist.";
+// ------------------------------------------------------------------ Aufträge
+const STEPS = ["queued", "printing", "done"];
+function el(tag, cls, text) {
+  const e = document.createElement(tag);
+  if (cls) e.className = cls;
+  if (text !== undefined) e.textContent = text;
+  return e;
+}
+function jobItem(j) {
+  const li = el("li", "job"); li.dataset.status = j.status;
+  const g = el("div", `job-glyph fmt-${j.format}${j.farbe ? " color" : ""}`);
+  g.setAttribute("aria-hidden", "true"); g.append(el("span"), el("span"), el("span"));
+  const body = el("div", "job-body");
+  body.append(el("div", "job-title", j.datei));
+  let meta = `${j.format}, ${j.farbe ? "Farbe" : "Schwarzweiß"}, ${j.duplex === "none" ? "einseitig" : "beidseitig"}, ${j.druckseiten} Seite${j.druckseiten === 1 ? "" : "n"}`;
+  if (j.kopien > 1) meta += ` (${j.kopien} Kopien)`;
+  body.append(el("div", "job-meta", meta));
+  if (j.fehler && j.status === "error") body.append(el("div", "job-error", j.fehler));
+  const side = el("div", "job-side");
+  side.append(el("span", `status s-${j.status}`, j.status_text + (j.position ? `, Platz ${j.position}` : "")));
+  side.append(el("span", "job-time", j.erstellt_zeit));
+  if (j.status === "queued") {
+    const f = el("form"); f.method = "post"; f.action = `/jobs/${encodeURIComponent(j.id)}/cancel`;
+    const h = el("input"); h.type = "hidden"; h.name = "csrf"; h.value = csrf;
+    const b = el("button", "btn-text danger", "Abbrechen"); b.type = "submit";
+    f.append(h, b); side.append(f);
   }
-
-  let timer = null;
-  async function refresh() {
-    clearTimeout(timer);
-    try {
-      const r = await fetch("/api/my-jobs", { credentials: "same-origin" });
-      if (r.status === 401) { window.location = "/login"; return; }
-      const data = await r.json();
-      renderJobs(data.jobs);
-      renderAgent(data.agent_online);
-      const active = data.jobs.some((j) => j.status === "queued" || j.status === "printing");
-      timer = setTimeout(refresh, active ? 4000 : 20000);
-    } catch (e) {
-      timer = setTimeout(refresh, 15000);
+  li.append(g, body, side);
+  return li;
+}
+let lastStatuses = {};
+function renderJobs(jobs, announce) {
+  const list = $("jobs");
+  list.replaceChildren();
+  if (!jobs.length) {
+    list.append(el("li", "jobs-empty", "Hier erscheinen deine Druckaufträge, sobald du ein PDF abschickst."));
+    return;
+  }
+  for (const j of jobs) {
+    const li = jobItem(j);
+    if (announce && lastStatuses[j.id] && lastStatuses[j.id] !== j.status) {
+      li.classList.add("changed");
+      if (j.status === "done") toast(`„${j.datei}“ ist gedruckt und liegt am Drucker.`, "ok");
+      if (j.status === "error") toast(`„${j.datei}“: ${j.fehler || "Druckfehler"}`, "error");
     }
+    list.append(li);
   }
-  document.addEventListener("visibilitychange", () => { if (!document.hidden) refresh(); });
-  timer = setTimeout(refresh, 4000);
-})();
+  lastStatuses = Object.fromEntries(jobs.map((j) => [j.id, j.status]));
+}
+function renderAgent(online) {
+  $("agent-pill").className = `pill ${online ? "ok" : "warn"}`;
+  $("agent-text").textContent = online ? "Drucker bereit" : "Drucker offline";
+  $("agent-pill").title = online ? "Der Druck-PC ist verbunden." : "Der Druck-PC ist gerade nicht verbunden. Aufträge warten und werden gedruckt, sobald er wieder online ist.";
+}
+let timer = null, firstLoad = true;
+async function refreshJobs() {
+  clearTimeout(timer);
+  try {
+    const r = await fetch("/api/my-jobs", { credentials: "same-origin" });
+    if (r.status === 401) { window.location = "/login"; return; }
+    const data = await r.json();
+    renderJobs(data.jobs, !firstLoad);
+    firstLoad = false;
+    renderAgent(data.agent_online);
+    const active = data.jobs.some((j) => j.status === "queued" || j.status === "printing");
+    timer = setTimeout(refreshJobs, active ? 3000 : 20000);
+  } catch {
+    timer = setTimeout(refreshJobs, 15000);
+  }
+}
+document.addEventListener("visibilitychange", () => { if (!document.hidden) refreshJobs(); });
+
+// ------------------------------------------------------------------ Helfer
+function fmtSize(b) {
+  return b >= 1048576 ? `${(b / 1048576).toFixed(1).replace(".", ",")} MB` : `${Math.max(1, Math.round(b / 1024))} KB`;
+}
+function toast(msg, kind) { window.showToast ? window.showToast(msg, kind) : alert(msg); }
+
+if (reduceMotion) document.documentElement.classList.add("reduce-motion");
+update();
+refreshJobs();

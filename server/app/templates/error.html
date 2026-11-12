@@ -1,8 +1,15 @@
 {% extends "base.html" %}
+{% block body_class %}auth{% endblock %}
 {% block content %}
-<section class="card narrow">
-  <h1>Fehler</h1>
-  <p>{{ message }}</p>
-  <p><a href="/">Zurück zur Startseite</a></p>
-</section>
+<div class="auth-wrap single">
+  <section class="auth-card">
+    <div class="brand-row">
+      <svg class="logo"><use href="#i-logo"/></svg>
+      <span>{{ site_title }}</span>
+    </div>
+    <h1>Das hat nicht geklappt</h1>
+    <p class="lede">{{ message }}</p>
+    <a class="btn btn-secondary btn-lg" href="/">Zur Startseite</a>
+  </section>
+</div>
 {% endblock %}

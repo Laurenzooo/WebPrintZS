@@ -1,6 +1,13 @@
-<a href="/admin">Übersicht</a>
-<a href="/admin/log">Log</a>
-<form method="post" action="/admin/logout" class="inline">
-  <input type="hidden" name="csrf" value="{{ csrf }}">
-  <button type="submit" class="link">Abmelden</button>
-</form>
+<header class="app-bar">
+  <a class="brand" href="/admin"><svg class="logo"><use href="#i-logo"/></svg><span>{{ site_title }}</span><span class="brand-tag">Verwaltung</span></a>
+  <nav class="tabs" aria-label="Admin">
+    <a href="/admin" {% if active == 'overview' %}aria-current="page"{% endif %}>Übersicht</a>
+    <a href="/admin/log" {% if active == 'log' %}aria-current="page"{% endif %}>Protokoll</a>
+  </nav>
+  <div class="app-bar-right">
+    <form method="post" action="/admin/logout">
+      <input type="hidden" name="csrf" value="{{ csrf }}">
+      <button type="submit" class="icon-btn" aria-label="Abmelden" title="Abmelden"><svg class="ic"><use href="#i-logout"/></svg></button>
+    </form>
+  </div>
+</header>
