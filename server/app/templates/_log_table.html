@@ -1,0 +1,27 @@
+{% set rows = rows if rows is defined else recent %}
+{% if rows %}
+<div class="table-wrap"><table>
+  <thead><tr><th>Zeit</th><th>Nutzer</th><th>Datei</th><th>Einstellungen</th><th>Seiten</th><th>Status</th><th></th></tr></thead>
+  <tbody>
+  {% for j in rows %}
+    <tr>
+      <td>{{ j.created_at | localtime }}</td>
+      <td>{{ j.user_name }}<br><span class="muted small">{{ j.ip }}</span></td>
+      <td class="fn">{{ j.filename }}{% if j.preset %}<br><span class="muted small">{{ j.preset }}</span>{% endif %}</td>
+      <td>{{ j.format }} · {{ 'Farbe' if j.color else 's/w' }} · {{ j.duplex }} · {{ j.copies }}×{% if j.page_range %}<br><span class="muted small">S. {{ j.page_range }}</span>{% endif %}</td>
+      <td>{{ j.print_pages }} <span class="muted small">({{ j.sheets }} Bl.)</span></td>
+      <td><span class="badge s-{{ j.status }}">{{ STATUS_LABELS[j.status] }}</span>
+        {% if j.error %}<br><span class="small job-err">{{ j.error }}</span>{% endif %}</td>
+      <td>
+        {% if j.has_file and j.status in ('error', 'cancelled', 'expired') %}
+        <form method="post" action="/admin/jobs/{{ j.id }}/requeue" class="inline">
+          <input type="hidden" name="csrf" value="{{ csrf }}">
+          <button type="submit" class="link">Erneut drucken</button>
+        </form>
+        {% endif %}
+      </td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table></div>
+{% else %}<p class="muted">Keine Einträge.</p>{% endif %}

@@ -1,0 +1,36 @@
+[
+  {
+    "id": "skript-a4-sw-duplex",
+    "name": "Skript A4 s/w beidseitig",
+    "format": "A4",
+    "farbe": false,
+    "duplex": "long",
+    "kopien": 1,
+    "hinweis": "Spart Papier und Tinte – ideal für Vorlesungsfolien und Skripte."
+  },
+  {
+    "id": "a4-farbe",
+    "name": "A4 farbig einseitig",
+    "format": "A4",
+    "farbe": true,
+    "duplex": "none",
+    "kopien": 1
+  },
+  {
+    "id": "abgabe-a3-farbe",
+    "name": "Abgabe A3 farbig",
+    "format": "A3",
+    "farbe": true,
+    "duplex": "none",
+    "kopien": 1,
+    "hinweis": "A3 wird aus dem A3-Fach gedruckt. Bitte vorher kurz prüfen, ob A3-Papier eingelegt ist."
+  },
+  {
+    "id": "a3-sw",
+    "name": "A3 s/w (Pläne, Entwürfe)",
+    "format": "A3",
+    "farbe": false,
+    "duplex": "none",
+    "kopien": 1
+  }
+]

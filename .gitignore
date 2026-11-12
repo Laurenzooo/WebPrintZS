@@ -1,0 +1,9 @@
+.env
+__pycache__/
+*.pyc
+.venv/
+data/
+agent/config.toml
+agent/work/
+agent/*.log*
+agent/pending_reports.json

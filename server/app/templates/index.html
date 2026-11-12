@@ -1,0 +1,98 @@
+{% extends "base.html" %}
+{% block nav %}
+  <span class="who">{{ user.name }}</span>
+  <form method="post" action="/logout" class="inline">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <button type="submit" class="link">Abmelden</button>
+  </form>
+{% endblock %}
+{% block content %}
+<div id="agent-banner" class="agent {{ 'online' if agent.online else 'offline' }}">
+  <span class="dot"></span>
+  <span id="agent-text">{{ 'Drucker bereit' if agent.online else 'Druck-PC offline – Aufträge werden gedruckt, sobald er wieder erreichbar ist.' }}</span>
+</div>
+
+<section class="card">
+  <h1>PDF drucken</h1>
+  <form id="upload-form" method="post" action="/upload" enctype="multipart/form-data">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+
+    <label class="file">
+      <span>PDF-Datei (max. {{ max_upload_mb }} MB)</span>
+      <input id="datei" name="datei" type="file" accept="application/pdf,.pdf" required
+             data-max-bytes="{{ max_upload_mb * 1024 * 1024 }}">
+    </label>
+
+    {% if presets %}
+    <label>Voreinstellung
+      <select id="preset" name="preset">
+        <option value="">– eigene Einstellungen –</option>
+        {% for p in presets %}<option value="{{ p.id }}">{{ p.name }}</option>{% endfor %}
+      </select>
+    </label>
+    <p id="preset-hint" class="hint" hidden></p>
+    {% endif %}
+
+    <div class="grid">
+      <label>Papierformat
+        <select id="format" name="format">
+          {% for f in formats %}<option value="{{ f }}">{{ f }}</option>{% endfor %}
+        </select>
+      </label>
+      <label>Kopien
+        <input id="kopien" name="kopien" type="number" min="1" max="{{ max_copies }}" value="1" required>
+      </label>
+    </div>
+
+    <fieldset>
+      <legend>Farbe</legend>
+      <label class="radio"><input type="radio" name="farbe" value="0" checked> Schwarzweiß</label>
+      <label class="radio"><input type="radio" name="farbe" value="1"> Farbe</label>
+    </fieldset>
+
+    <label>Seiten
+      <select id="duplex" name="duplex">
+        <option value="none">Einseitig</option>
+        <option value="long">Beidseitig – lange Kante (Hochformat)</option>
+        <option value="short">Beidseitig – kurze Kante (Querformat)</option>
+      </select>
+    </label>
+
+    <label>Seitenbereich <span class="muted">(optional)</span>
+      <input id="seiten" name="seiten" maxlength="200" placeholder="leer = alle, z. B. 1-3,5" inputmode="numeric">
+    </label>
+
+    <div id="progress" class="progress" hidden><progress max="100" value="0"></progress><span></span></div>
+    <div id="form-msg" class="flash" hidden role="status"></div>
+    <button id="submit" type="submit" class="primary">Drucken</button>
+  </form>
+</section>
+
+<section class="card">
+  <h2>Meine Aufträge</h2>
+  <ul id="jobs" class="jobs">
+    {% for j in jobs %}
+    <li class="job s-{{ j.status }}">
+      <div class="job-main">
+        <strong class="fn">{{ j.datei }}</strong>
+        <span class="badge s-{{ j.status }}">{{ j.status_text }}{% if j.position %} · Platz {{ j.position }}{% endif %}</span>
+      </div>
+      <div class="job-meta">{{ j.erstellt_lokal }} · {{ j.format }} · {{ 'Farbe' if j.farbe else 's/w' }} · {{ DUPLEX_LABELS[j.duplex] }} · {{ j.kopien }}× · {{ j.druckseiten }} S.</div>
+      {% if j.fehler and j.status == 'error' %}<div class="job-err">{{ j.fehler }}</div>{% endif %}
+      {% if j.status == 'queued' %}
+      <form method="post" action="/jobs/{{ j.id }}/cancel" class="inline">
+        <input type="hidden" name="csrf" value="{{ csrf }}">
+        <button type="submit" class="link danger">Abbrechen</button>
+      </form>
+      {% endif %}
+    </li>
+    {% else %}
+    <li class="empty muted">Noch keine Aufträge.</li>
+    {% endfor %}
+  </ul>
+</section>
+
+<script type="application/json" id="presets-data">{{ presets_json | safe }}</script>
+<script type="application/json" id="duplex-formats">{{ duplex_formats_json | safe }}</script>
+{% endblock %}
+{% block scripts %}<script src="/static/app.js" defer></script>{% endblock %}

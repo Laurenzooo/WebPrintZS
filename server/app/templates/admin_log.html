@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block title %}Log – {{ site_title }}{% endblock %}
+{% block nav %}{% include "_admin_nav.html" %}{% endblock %}
+{% block content %}
+<section class="card">
+  <h1>Druck-Log <span class="muted">({{ total }})</span></h1>
+  <form method="get" action="/admin/log" class="row">
+    <input name="user" value="{{ user }}" placeholder="Nach Nutzer filtern">
+    <button type="submit">Filtern</button>
+    <a class="button" href="/admin/log.csv">CSV-Export</a>
+  </form>
+  {% include "_log_table.html" %}
+  {% if pages > 1 %}
+  <nav class="pager">
+    {% if page > 1 %}<a href="?page={{ page - 1 }}&user={{ user | urlencode }}">← neuer</a>{% endif %}
+    <span>Seite {{ page }} / {{ pages }}</span>
+    {% if page < pages %}<a href="?page={{ page + 1 }}&user={{ user | urlencode }}">älter →</a>{% endif %}
+  </nav>
+  {% endif %}
+</section>
+{% endblock %}

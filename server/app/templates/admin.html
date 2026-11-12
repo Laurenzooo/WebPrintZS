@@ -1,0 +1,108 @@
+{% extends "base.html" %}
+{% block title %}Admin – {{ site_title }}{% endblock %}
+{% block nav %}{% include "_admin_nav.html" %}{% endblock %}
+{% block content %}
+<section class="card">
+  <h1>Druck-Agent</h1>
+  <div class="agent {{ 'online' if agent.online else 'offline' }}">
+    <span class="dot"></span>
+    {% if agent.last_seen %}
+      {{ 'Online' if agent.online else 'Offline' }} – zuletzt gesehen {{ agent.last_seen | localtime }}
+      ({{ agent.age_s | int }} s her)
+    {% else %}
+      Noch nie verbunden.
+    {% endif %}
+  </div>
+  {% if agent.last_seen %}
+  <dl class="kv">
+    <dt>Rechner</dt><dd>{{ agent.hostname or '–' }} ({{ agent.ip or '?' }})</dd>
+    <dt>Version / Methode</dt><dd>{{ agent.version or '–' }} / {{ agent.method or '–' }}</dd>
+    <dt>Drucker</dt><dd>{{ agent.printer or '–' }}</dd>
+    <dt>Letzter Heartbeat</dt><dd>{{ agent.heartbeat_at | localtime }}</dd>
+    {% if agent.message %}<dt>Meldung</dt><dd>{{ agent.message }}</dd>{% endif %}
+  </dl>
+  {% set ps = agent.printer_status %}
+  {% if ps %}
+    <h3>Druckerstatus (IPP)</h3>
+    <p>{{ ps.state or '?' }}{% if ps.reasons %} – {{ ps.reasons | join(', ') }}{% endif %}</p>
+    {% if ps.markers %}
+    <ul class="markers">
+      {% for m in ps.markers %}
+      <li><span>{{ m.name }}</span>
+        {% if m.level is not none and m.level >= 0 %}
+          <meter min="0" max="100" low="15" optimum="100" value="{{ m.level }}">{{ m.level }} %</meter> {{ m.level }} %
+        {% else %}<span class="muted">unbekannt</span>{% endif %}
+      </li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+  {% endif %}
+  {% endif %}
+</section>
+
+<section class="card">
+  <h2>Warteschlange ({{ queue | length }})</h2>
+  {% if queue %}
+  <div class="table-wrap"><table>
+    <thead><tr><th>Zeit</th><th>Nutzer</th><th>Datei</th><th>Einstellungen</th><th>Status</th><th></th></tr></thead>
+    <tbody>
+    {% for j in queue %}
+      <tr>
+        <td>{{ j.created_at | localtime }}</td>
+        <td>{{ j.user_name }}</td>
+        <td class="fn">{{ j.filename }}</td>
+        <td>{{ j.format }} · {{ 'Farbe' if j.color else 's/w' }} · {{ j.duplex }} · {{ j.copies }}× · {{ j.print_pages }} S.{% if j.page_range %} ({{ j.page_range }}){% endif %}</td>
+        <td><span class="badge s-{{ j.status }}">{{ STATUS_LABELS[j.status] }}</span></td>
+        <td>
+          <form method="post" action="/admin/jobs/{{ j.id }}/cancel" class="inline">
+            <input type="hidden" name="csrf" value="{{ csrf }}">
+            <button type="submit" class="link danger">Abbrechen</button>
+          </form>
+        </td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+  {% else %}<p class="muted">Leer.</p>{% endif %}
+</section>
+
+<section class="card">
+  <h2>Letzte Aufträge</h2>
+  {% include "_log_table.html" %}
+  <p><a href="/admin/log">Vollständiges Log</a> · <a href="/admin/log.csv">CSV-Export</a></p>
+</section>
+
+<section class="card">
+  <h2>Verbrauch (letzte 30 Tage, gedruckt)</h2>
+  {% if stats.by_format %}
+  <div class="table-wrap"><table>
+    <thead><tr><th>Format</th><th>Farbe</th><th>Aufträge</th><th>Seiten</th><th>Blatt</th></tr></thead>
+    <tbody>
+    {% for r in stats.by_format %}
+      <tr><td>{{ r.format }}</td><td>{{ 'Farbe' if r.color else 's/w' }}</td><td>{{ r.jobs }}</td><td>{{ r.pages }}</td><td>{{ r.sheets }}</td></tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+  <h3>Nach Nutzer</h3>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Nutzer</th><th>Aufträge</th><th>Seiten</th><th>davon Farbe</th></tr></thead>
+    <tbody>
+    {% for r in stats.by_user %}
+      <tr><td>{{ r.user_name }}</td><td>{{ r.jobs }}</td><td>{{ r.pages }}</td><td>{{ r.color_pages }}</td></tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+  {% else %}<p class="muted">Noch keine gedruckten Aufträge.</p>{% endif %}
+  <p class="muted">Fehlgeschlagene Aufträge: {{ stats.errors }}</p>
+</section>
+
+<section class="card">
+  <h2>Konfiguration</h2>
+  <dl class="kv">
+    <dt>Max. Upload</dt><dd>{{ settings.max_upload_mb }} MB, {{ settings.max_pages }} Seiten, {{ settings.max_copies }} Kopien</dd>
+    <dt>Rate-Limit</dt><dd>{{ settings.jobs_per_hour }} Aufträge/Stunde{% if settings.pages_per_day %}, {{ settings.pages_per_day }} Seiten/Tag{% endif %}</dd>
+    <dt>Verfall</dt><dd>nicht gedruckt nach {{ settings.job_expire_hours }} h, Druck-Timeout {{ settings.printing_timeout_min }} min</dd>
+    <dt>Log-Aufbewahrung</dt><dd>{{ settings.log_retention_days }} Tage</dd>
+  </dl>
+</section>
+{% endblock %}

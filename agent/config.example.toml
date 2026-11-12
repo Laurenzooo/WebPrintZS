@@ -1,0 +1,64 @@
+# Druck-Agent – Konfiguration
+# Kopieren nach config.toml (liegt neben druckagent.py) und anpassen.
+# Windows-Pfade: einfache Anführungszeichen ('...') verwenden, dann sind Backslashes kein Problem.
+
+server_url = "https://druck.example.de"
+api_token  = "HIER-AGENT_TOKEN-AUS-DER-SERVER-.env"
+
+poll_interval      = 5     # Sekunden zwischen Abfragen
+heartbeat_interval = 30    # Sekunden zwischen Heartbeats (inkl. Druckerstatus)
+print_timeout      = 600   # max. Sekunden pro Druckauftrag
+
+# Standard-Druckweg: "sumatra" (Windows), "cups" (Linux/macOS), "ipp" (direkt), "dummy" (Test)
+method  = "sumatra"
+# Windows-Druckername genau wie in "Drucker & Scanner" (oder: python druckagent.py --list-printers)
+printer = "HP OfficeJet Pro 7740 series"
+
+work_dir = 'C:\WebDruck\work'
+log_file = 'C:\WebDruck\druckagent.log'
+
+[sumatra]
+path    = 'C:\Program Files\SumatraPDF\SumatraPDF.exe'
+scaling = "fit"              # fit | shrink | noscale
+wait_for_spooler = true      # erst "gedruckt" melden, wenn die Windows-Warteschlange leer ist
+extra   = []                 # zusätzliche -print-settings, z. B. ["bin=2"]
+
+[cups]
+options = []                 # zusätzliche lp -o Optionen, z. B. ["fit-to-page"]
+
+[ipp]
+# Direkt an den Drucker (nur wenn --check-ipp "application/pdf" zeigt).
+uri = ""                     # z. B. "ipp://192.168.1.50/ipp/print"
+# Nur für Status/Tintenstände in der Admin-Ansicht (funktioniert auch bei method = "sumatra"):
+status_uri = ""              # z. B. "ipp://192.168.1.50/ipp/print"
+scaling = "fit"
+wait_for_completion = true
+
+# ---------------------------------------------------------------- Routing
+# Regeln werden von oben nach unten geprüft; die erste passende gewinnt.
+# Bedingungen: preset, format, farbe, duplex (alle angegebenen müssen passen).
+# Ziel:        printer (Instanz), optional method, bin (Papierfach), extra (zusätzliche Optionen).
+# Passt keine Regel, gilt method/printer von oben.
+
+[[route]]
+name    = "Abgabe A3 farbig"
+preset  = "abgabe-a3-farbe"
+printer = "HP7740_A3_farbe"          # Instanz mit Treiber-Voreinstellungen (Fach 2, beste Qualität)
+
+[[route]]
+name    = "Skript s/w duplex"
+preset  = "skript-a4-sw-duplex"
+printer = "HP7740_A4_sw_duplex"      # Instanz mit Entwurfsqualität / Graustufen
+
+[[route]]
+name    = "Alles in A3"
+format  = "A3"
+printer = "HP7740_A3_farbe"
+# bin   = "2"                         # alternativ Papierfach direkt per SumatraPDF wählen
+
+# Beispiel: A4 farbig direkt per IPP am Treiber vorbei
+# [[route]]
+# format = "A4"
+# farbe  = true
+# method = "ipp"
+# printer = "ipp://192.168.1.50/ipp/print"
