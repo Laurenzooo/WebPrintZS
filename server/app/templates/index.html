@@ -131,7 +131,6 @@
           <input type="radio" name="ausrichtung" value="auto" checked>
           <span class="orient-glyph auto" aria-hidden="true"><i></i><i></i></span>
           <span class="tile-title">Automatisch</span>
-          <span class="tile-sub" id="orient-detected">wie im PDF</span>
         </label>
         <label class="tile orient-tile">
           <input type="radio" name="ausrichtung" value="portrait">
@@ -152,12 +151,12 @@
         <label class="tile row-tile">
           <input type="radio" name="skalierung" value="fit" checked>
           <svg class="scale-ic" aria-hidden="true"><use href="#i-fit"/></svg>
-          <span class="tile-text"><span class="tile-title">An Blatt anpassen</span><span class="tile-sub">passt immer drauf</span></span>
+          <span class="tile-title">An Blatt anpassen</span>
         </label>
         <label class="tile row-tile">
           <input type="radio" name="skalierung" value="actual">
           <svg class="scale-ic" aria-hidden="true"><use href="#i-actual"/></svg>
-          <span class="tile-text"><span class="tile-title">Tatsächliche Größe</span><span class="tile-sub">100 %, maßstabsgetreu</span></span>
+          <span class="tile-title">Tatsächliche Größe</span>
         </label>
       </div>
       <p id="scale-info" class="help" hidden></p>
@@ -186,12 +185,12 @@
         <label class="tile row-tile">
           <input type="radio" name="seiten_modus" value="einseitig" checked>
           <svg class="mode-ic" aria-hidden="true"><use href="#i-simplex"/></svg>
-          <span class="tile-text"><span class="tile-title">Einseitig</span><span class="tile-sub">Rückseite bleibt leer</span></span>
+          <span class="tile-title">Einseitig</span>
         </label>
         <label class="tile row-tile">
           <input type="radio" name="seiten_modus" value="beidseitig">
           <svg class="mode-ic" aria-hidden="true"><use href="#i-duplex"/></svg>
-          <span class="tile-text"><span class="tile-title">Beidseitig</span><span class="tile-sub">halb so viel Papier</span></span>
+          <span class="tile-title">Beidseitig</span>
         </label>
       </div>
 
@@ -221,7 +220,7 @@
     <div class="print-bar">
       <div class="summary" id="summary" aria-live="polite">
         <span class="sum-main" id="sum-main">Noch keine Datei gewählt</span>
-        <span class="sum-sub" id="sum-sub">Die Vorschau zeigt, wie der Druck aussieht.</span>
+        <span class="sum-sub" id="sum-sub"></span>
       </div>
       <div id="upload-progress" class="upload-progress" hidden><span id="upload-bar"></span></div>
       <button id="submit" type="submit" class="btn btn-primary btn-lg btn-print" disabled>
@@ -234,7 +233,6 @@
 <section class="jobs-section" aria-labelledby="jobs-title">
   <div class="section-head">
     <h2 id="jobs-title">Meine Aufträge</h2>
-    <span class="help">Aktualisiert sich automatisch</span>
   </div>
   <ul id="jobs" class="jobs">
     {% for j in jobs %}{{ job_item(j) }}{% else %}
@@ -246,4 +244,4 @@
 <script type="application/json" id="presets-data">{{ presets_json | safe }}</script>
 <script type="application/json" id="duplex-formats">{{ duplex_formats_json | safe }}</script>
 {% endblock %}
-{% block scripts %}<script type="module" src="/static/app.js?v=6"></script>{% endblock %}
+{% block scripts %}<script type="module" src="/static/app.js?v=7"></script>{% endblock %}

@@ -477,7 +477,7 @@ body.auth { min-height: 100vh; }
   background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg); padding: 32px 28px;
 }
 .brand-row { display: flex; align-items: center; gap: 9px; font-weight: 600; margin-bottom: 26px; }
-.auth-card h1 { font-size: 30px; letter-spacing: -0.025em; line-height: 1.15; }
+.auth-card h1 { margin-bottom: 18px; font-size: 30px; letter-spacing: -0.025em; line-height: 1.15; }
 .lede { color: var(--muted); font-size: 16px; margin-bottom: 18px; }
 .auth-card .btn-lg { width: 100%; margin-top: 4px; }
 

@@ -360,7 +360,6 @@ function demoFlip() {
 }
 
 function update() {
-  $("orient-detected").textContent = state.doc ? (state.landscape ? "Querformat erkannt" : "Hochformat erkannt") : "wie im PDF";
   updateDuplexAvailability();
   const s = settings();
   const r = parseRange($("seiten").value, state.pages);
@@ -386,7 +385,7 @@ function update() {
   const main = $("sum-main"), sub = $("sum-sub");
   if (!state.file) {
     main.textContent = "Noch keine Datei gewählt";
-    sub.textContent = "Die Vorschau zeigt, wie der Druck aussieht.";
+    sub.textContent = "";
     btn.disabled = true;
   } else if (!state.doc) {
     main.textContent = "Datei kann nicht gedruckt werden";
