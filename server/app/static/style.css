@@ -254,12 +254,12 @@ input[aria-invalid=true] { border-color: var(--err); box-shadow: 0 0 0 3px var(-
 .thumbs {
   display: flex; gap: 10px; overflow-x: auto; padding: 10px 14px 14px;
   background: color-mix(in srgb, var(--surface) 70%, transparent);
-  scrollbar-width: thin; scroll-snap-type: x proximity;
+  scrollbar-width: thin;
 }
 .thumbs { cursor: grab; user-select: none; -webkit-user-select: none; }
-.thumbs.grabbing { cursor: grabbing; scroll-snap-type: none; }
+.thumbs.grabbing { cursor: grabbing; }
 .thumbs.grabbing .thumb-view { pointer-events: none; }
-.thumb { flex: none; position: relative; display: grid; justify-items: center; gap: 4px; scroll-snap-align: start; }
+.thumb { flex: none; position: relative; display: grid; justify-items: center; gap: 4px; }
 .thumb-view { padding: 0; border: 0; background: none; cursor: inherit; border-radius: 3px; }
 .thumb canvas {
   display: block; height: 92px; min-width: 64px; background: var(--sheet); border-radius: 2px;

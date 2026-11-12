@@ -195,12 +195,34 @@ function goToPage(p) {
   renderPreview();
 }
 
-// Seitenleiste mit der Maus greifen und ziehen (Touch scrollt nativ).
+// Seitenleiste mit der Maus greifen und ziehen, mit Schwung nach dem Loslassen (Touch scrollt nativ).
 function enableDragScroll(el) {
   let startX = 0, startLeft = 0, dragging = false, down = false;
+  let samples = [];          // [zeit, x] der letzten Bewegungen, für die Wurfgeschwindigkeit
+  let glide = 0;             // requestAnimationFrame-ID des Nachlaufs
+
+  const stopGlide = () => { if (glide) cancelAnimationFrame(glide); glide = 0; };
+
+  function startGlide(velocity) {   // px pro ms, positiv = Inhalt nach links
+    if (reduceMotion || Math.abs(velocity) < 0.05) return;
+    let v = velocity, last = performance.now();
+    const step = (now) => {
+      const dt = Math.min(now - last, 32);
+      last = now;
+      const before = el.scrollLeft;
+      el.scrollLeft = before + v * dt;
+      v *= Math.pow(0.995, dt);          // Reibung: ~26 % Geschwindigkeitsverlust je 60 ms
+      const atEdge = el.scrollLeft === before;
+      glide = Math.abs(v) > 0.02 && !atEdge ? requestAnimationFrame(step) : 0;
+    };
+    glide = requestAnimationFrame(step);
+  }
+
   el.addEventListener("pointerdown", (e) => {
+    stopGlide();
     if (e.pointerType !== "mouse" || e.button !== 0) return;
     down = true; dragging = false; startX = e.clientX; startLeft = el.scrollLeft;
+    samples = [[performance.now(), e.clientX]];
   });
   el.addEventListener("pointermove", (e) => {
     if (!down) return;
@@ -210,16 +232,28 @@ function enableDragScroll(el) {
       el.classList.add("grabbing");
       el.setPointerCapture(e.pointerId);
     }
-    if (dragging) el.scrollLeft = startLeft - dx;
+    if (!dragging) return;
+    el.scrollLeft = startLeft - dx;
+    const now = performance.now();
+    samples.push([now, e.clientX]);
+    while (samples.length > 2 && now - samples[0][0] > 80) samples.shift();
   });
   const end = (e) => {
     if (!down) return;
     down = false;
     el.classList.remove("grabbing");
     if (el.hasPointerCapture?.(e.pointerId)) el.releasePointerCapture(e.pointerId);
+    if (!dragging || e.type === "pointercancel") return;
+    // Geschwindigkeit der letzten ~80 ms; wer vor dem Loslassen kurz stillhält, wirft nicht.
+    const now = performance.now();
+    const [t0, x0] = samples[0];
+    const [t1, x1] = samples[samples.length - 1];
+    if (now - t1 > 60 || t1 === t0) return;
+    startGlide(-(x1 - x0) / (t1 - t0));
   };
   el.addEventListener("pointerup", end);
   el.addEventListener("pointercancel", end);
+  el.addEventListener("wheel", stopGlide, { passive: true });
   // Ein Ziehvorgang soll keinen Klick auf eine Miniatur auslösen.
   el.addEventListener("click", (e) => {
     if (dragging) { e.stopPropagation(); e.preventDefault(); dragging = false; }
