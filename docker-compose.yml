@@ -23,8 +23,8 @@ services:
       COOKIE_SECURE: ${COOKIE_SECURE:-true}
     volumes:
       - druckdienst-data:/data
-    ports:
-      - "8000"   # Coolify/Traefik routet auf diesen Port; lokal ggf. "8000:8000"
+    expose:
+      - "8000"   # nur intern, Coolify/Traefik routet hierhin; lokal: ports: ["8000:8000"]
 
 volumes:
   druckdienst-data:

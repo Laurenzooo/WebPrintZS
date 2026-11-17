@@ -98,7 +98,7 @@ Das Volume `druckdienst-data` (→ `/data`) enthält die Datenbank und die PDFs.
 
 ```bash
 cp .env.example .env          # Werte eintragen, COOKIE_SECURE=false
-# in docker-compose.yml ports auf "8000:8000" ändern
+# in docker-compose.yml "expose" durch ports: ["8000:8000"] ersetzen
 docker compose up --build     # → http://localhost:8000
 ```
 
